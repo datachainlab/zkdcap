@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/quote-verifier",
+]
+exclude = [
+    "zkvm/risc0",
+    "zkvm/risc0/guest",
+]

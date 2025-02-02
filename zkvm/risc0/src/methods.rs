@@ -1,0 +1,3 @@
+
+pub const DCAP_QUOTE_VERIFIER_ID: [u32; 8] = [2091669100, 372801837, 2494716901, 1950688924, 2287834526, 2053893675, 48070539, 4080064569];
+pub const DCAP_QUOTE_VERIFIER_ELF: &[u8] = include_bytes!("../artifacts/dcap-quote-verifier");
