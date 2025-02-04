@@ -23,3 +23,6 @@ alloy-sol-types = { version = "0.8.12" }
 
 [features]
 default = []
+
+[dev-dependencies]
+dcap-collaterals = { path = "../collaterals" }

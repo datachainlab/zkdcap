@@ -5,3 +5,5 @@ pub mod hash;
 pub mod quotes;
 pub mod tcbinfo;
 pub mod tdx_module;
+#[cfg(test)]
+pub mod tests;

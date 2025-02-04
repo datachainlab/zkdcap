@@ -1,0 +1,14 @@
+[package]
+name = "dcap-collaterals"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+hex = "0.4"
+serde_json = { version = "1.0", features = ["alloc", "preserve_order"] }
+x509-parser = "0.15.1"
+der = { version = "0.7", features = ["derive"] }
+chrono = { version = "0.4" }
+
+openssl = { git = "https://github.com/gweisert/rust-openssl", rev = "812b73e01ffbcac6b7ba61fe801b2313269e5c7b", features = ["vendored"] }

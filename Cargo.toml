@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/quote-verifier",
+    "crates/collaterals",
 ]
 exclude = [
     "zkvm/risc0",

@@ -86,3 +86,67 @@ pub fn get_qe_tcbstatus(
         qe_report_isv_svn
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        constants::SGX_TEE_TYPE,
+        utils::{enclave_identity::validate_qe_identityv2, tests::gen_enclave_identity},
+    };
+    use dcap_collaterals::{
+        certs::{gen_sgx_intel_root_ca, gen_tcb_signing_ca, Validity},
+        utils::{gen_key, to_certificate, unix_timestamp_to_rfc3339},
+    };
+
+    #[test]
+    fn test_validate_enclave_identity() {
+        let root_pkey = gen_key();
+        let root_cert =
+            gen_sgx_intel_root_ca(&root_pkey, Validity::new_with_duration(1730000000, 1000))
+                .unwrap();
+        let tcb_signing_pkey = gen_key();
+        let tcb_signing_cert = gen_tcb_signing_ca(
+            &root_cert,
+            &root_pkey,
+            &tcb_signing_pkey,
+            Validity::new_with_duration(1730000000, 1000),
+        )
+        .unwrap();
+
+        let enclave_identity = {
+            let mut id = serde_json::from_slice::<EnclaveIdentityV2>(
+                include_bytes!("../../../../data/v3/qeidentityv2.json").as_slice(),
+            )
+            .unwrap()
+            .enclave_identity;
+            id.issue_date = unix_timestamp_to_rfc3339(1740000000);
+            id.next_update = unix_timestamp_to_rfc3339(1740000000 + 1000);
+            gen_enclave_identity(&tcb_signing_pkey, id).unwrap()
+        };
+
+        let res = validate_qe_identityv2(
+            SGX_TEE_TYPE,
+            &enclave_identity,
+            &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
+            1740000000,
+        );
+        assert!(res.is_ok(), "{:?}", res);
+        let validity = res.unwrap();
+
+        // The validity should reflect the issue date and next update date of the QE identity
+        assert_eq!(validity.not_before_max, 1740000000);
+        assert_eq!(validity.not_after_min, 1740000000 + 1000);
+
+        assert!(
+            validate_qe_identityv2(
+                SGX_TEE_TYPE,
+                &enclave_identity,
+                &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
+                1740000000 - 1
+            )
+            .is_err(),
+            "QE identity should be invalid before issue date"
+        );
+    }
+}

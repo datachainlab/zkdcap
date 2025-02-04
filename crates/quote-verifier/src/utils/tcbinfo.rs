@@ -58,3 +58,63 @@ pub fn validate_tcbinfov3(
         not_after_min: next_update_seconds,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::tests::gen_tcb_info_v3;
+    use dcap_collaterals::{
+        certs::{gen_sgx_intel_root_ca, gen_tcb_signing_ca, Validity},
+        utils::{gen_key, to_certificate, unix_timestamp_to_rfc3339},
+    };
+
+    #[test]
+    fn test_tcb_info_v3() {
+        let root_pkey = gen_key();
+        let root_cert =
+            gen_sgx_intel_root_ca(&root_pkey, Validity::new_with_duration(1730000000, 1000))
+                .unwrap();
+        let tcb_signing_pkey = gen_key();
+        let tcb_signing_cert = gen_tcb_signing_ca(
+            &root_cert,
+            &root_pkey,
+            &tcb_signing_pkey,
+            Validity::new_with_duration(1730000000, 1000),
+        )
+        .unwrap();
+
+        let tcb_info = {
+            let mut tcb_info = serde_json::from_slice::<TcbInfoV3>(
+                include_bytes!("../../../../data/v3/tcbinfov3_00906ED50000.json").as_slice(),
+            )
+            .unwrap()
+            .tcb_info;
+            tcb_info.issue_date = unix_timestamp_to_rfc3339(1740000000);
+            tcb_info.next_update = unix_timestamp_to_rfc3339(1740000000 + 1000);
+            gen_tcb_info_v3(&tcb_signing_pkey, tcb_info).unwrap()
+        };
+
+        let res = validate_tcbinfov3(
+            SGX_TEE_TYPE,
+            &tcb_info,
+            &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
+            1740000000,
+        );
+        assert!(res.is_ok(), "{:?}", res);
+        let validity = res.unwrap();
+        // The validity should reflect the issue date and next update date of the TCB Info
+        assert_eq!(validity.not_before_max, 1740000000);
+        assert_eq!(validity.not_after_min, 1740000000 + 1000);
+
+        assert!(
+            validate_tcbinfov3(
+                SGX_TEE_TYPE,
+                &tcb_info,
+                &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
+                1740000000 - 1,
+            )
+            .is_err(),
+            "TCB Info should be invalid before issue date"
+        );
+    }
+}
