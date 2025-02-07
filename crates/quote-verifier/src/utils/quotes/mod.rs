@@ -16,13 +16,14 @@ use crate::types::quotes::{
 use crate::types::tcbinfo::TcbInfo;
 use crate::types::{EnclaveIdentityV2TcbStatus, Status, TcbInfoV3TcbStatus, ValidityIntersection};
 use crate::utils::cert::{
-    extract_sgx_extensions, parse_certchain, parse_pem, verify_certificate, verify_crl_signature,
+    extract_sgx_extensions, parse_certchain, parse_pem, verify_crl_signature,
 };
 use crate::utils::crypto::verify_p256_signature_bytes;
 use crate::utils::enclave_identity::get_qe_tcbstatus;
 use crate::utils::enclave_identity::validate_qe_identityv2;
 use crate::utils::hash::sha256sum;
-use crate::utils::pck::verify_pck_certchain;
+use crate::utils::pck::validate_pck_cert;
+use crate::utils::tcbinfo::validate_tcb_signing_certificate;
 use crate::utils::tcbinfo::validate_tcbinfov3;
 use crate::Result;
 
@@ -66,91 +67,87 @@ fn common_verify_and_fetch_tcb(
     TcbInfo,
     ValidityIntersection,
 )> {
-    let tcb_signing_cert = collaterals.get_sgx_tcb_signing()?;
-    let intel_sgx_root_cert = collaterals.get_sgx_intel_root_ca()?;
-    let validity = ValidityIntersection::try_from(&intel_sgx_root_cert.validity)?;
-
-    // verify that signing_verifying_key is not revoked and signed by the root cert
-    let intel_crls = IntelSgxCrls::new(
-        collaterals.get_sgx_intel_root_ca_crl()?,
-        collaterals.get_sgx_pck_crl()?,
-    )?;
-    let validity = validity.with_other(intel_crls.check_validity(current_time)?);
-
-    // check that `sgx_root_ca_crl` is signed by the root cert
-    verify_crl_signature(&intel_crls.sgx_root_ca_crl, &intel_sgx_root_cert)
-        .context("Invalid Root CA CRL")?;
-
-    // check that root cert is not revoked
-    if intel_crls.is_cert_revoked(&intel_sgx_root_cert)? {
-        bail!("Root CA Cert revoked");
+    // get the certchain embedded in the ecda quote signature data
+    // this can be one of 5 types, and we only support type 5
+    // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/aa239d25a437a28f3f4de92c38f5b6809faac842/QuoteGeneration/quote_wrapper/common/inc/sgx_quote_3.h#L63C4-L63C112
+    if qe_cert_data.cert_data_type != 5 {
+        bail!("QE Cert Type must be 5");
     }
-
-    // check that the tcb signing cert is signed by the root cert
-    verify_certificate(&tcb_signing_cert, &intel_sgx_root_cert)
-        .context("Invalid TCB Signing Cert")?;
-
-    // check that the tcb signing cert is not revoked by the `self.sgx_root_ca_crl` CRL
-    if intel_crls.is_cert_revoked(&tcb_signing_cert)? {
-        bail!("TCB Signing Cert revoked");
-    }
-
-    let validity = validity.with_certificate(&tcb_signing_cert.validity)?;
-
-    // validate tcbinfo
-    let (validity, tcb_info) = {
-        let tcb_info_v3 = collaterals.get_tcbinfov3()?;
-        let tcb_validity = validate_tcbinfov3(
-            quote_header.tee_type,
-            &tcb_info_v3,
-            &tcb_signing_cert,
-            current_time,
-        )?;
-        (validity.with_other(tcb_validity), TcbInfo::V3(tcb_info_v3))
-    };
-
-    // validate QEIdentity
-    let (validity, qeidentityv2) = {
-        let qeidentityv2 = collaterals.get_qeidentityv2()?;
-        let qe_validity = validate_qe_identityv2(
-            quote_header.tee_type,
-            &qeidentityv2,
-            &tcb_signing_cert,
-            current_time,
-        )?;
-        (validity.with_other(qe_validity), qeidentityv2)
-    };
-
-    // validate QE Report and Quote Body
-    let (validity, qe_tcb_status, advisory_ids, pck_cert_sgx_extensions) = {
-        // get the certchain embedded in the ecda quote signature data
-        // this can be one of 5 types, and we only support type 5
-        // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/aa239d25a437a28f3f4de92c38f5b6809faac842/QuoteGeneration/quote_wrapper/common/inc/sgx_quote_3.h#L63C4-L63C112
-        if qe_cert_data.cert_data_type != 5 {
-            bail!("QE Cert Type must be 5");
-        }
-        let certchain_pems = parse_pem(&qe_cert_data.cert_data)?;
-        let certchain = parse_certchain(&certchain_pems)?;
+    let certchain_pems = parse_pem(&qe_cert_data.cert_data)?;
+    let (pck_leaf_cert, pck_issuer_cert) = {
+        let mut certchain = parse_certchain(&certchain_pems)?;
         // certchain in the cert_data whose type is 5 should have 3 certificates:
         // PCK leaf, PCK issuer, and Root CA
         if certchain.len() != 3 {
             bail!("Invalid Certchain length");
         }
         // extract the leaf and issuer certificates, but ignore the root cert as we already have it
-        let pck_leaf_cert = &certchain[0];
-        let pck_issuer_cert = &certchain[1];
-        let pck_validity = verify_pck_certchain(
-            pck_leaf_cert,
-            pck_issuer_cert,
-            &intel_sgx_root_cert,
-            &intel_crls,
-        )?;
+        (certchain.remove(0), certchain.remove(0))
+    };
+
+    let intel_sgx_root_cert = collaterals.get_sgx_intel_root_ca()?;
+    let intel_crls = {
+        let sgx_root_ca_crl = collaterals.get_sgx_intel_root_ca_crl()?;
+        let pck_crl = collaterals.get_sgx_pck_crl()?;
+
+        // check that `sgx_root_ca_crl` is signed by the root cert
+        verify_crl_signature(&sgx_root_ca_crl, &intel_sgx_root_cert)
+            .context("Invalid Root CA CRL")?;
+        // check that `pck_crl` is signed by the PCK Issuer cert
+        verify_crl_signature(&pck_crl, &pck_issuer_cert).context("Invalid PCK Issuer CRL")?;
+
+        IntelSgxCrls::new(sgx_root_ca_crl, pck_crl)?
+    };
+    let validity = intel_crls.check_validity(current_time)?;
+
+    // check that root cert is not revoked
+    if intel_crls.is_cert_revoked(&intel_sgx_root_cert)? {
+        bail!("Root CA Cert revoked");
+    }
+
+    let validity = validate_pck_cert(
+        &pck_leaf_cert,
+        &pck_issuer_cert,
+        &intel_sgx_root_cert,
+        &intel_crls,
+    )?
+    .with_other(validity);
+
+    let tcb_signing_cert = collaterals.get_sgx_tcb_signing()?;
+    let validity =
+        validate_tcb_signing_certificate(&tcb_signing_cert, &intel_sgx_root_cert, &intel_crls)?
+            .validate_or_error(current_time)
+            .context("TCB Signing Cert is not valid")?
+            .with_other(validity);
+
+    // validate tcbinfo
+    let (validity, tcb_info) = {
+        let tcb_info_v3 = collaterals.get_tcbinfov3()?;
+        let tcb_validity =
+            validate_tcbinfov3(quote_header.tee_type, &tcb_info_v3, &tcb_signing_cert)?
+                .validate_or_error(current_time)
+                .context("TCBInfo is not valid")?;
+        (validity.with_other(tcb_validity), TcbInfo::V3(tcb_info_v3))
+    };
+
+    // validate QEIdentity
+    let (validity, qeidentityv2) = {
+        let qeidentityv2 = collaterals.get_qeidentityv2()?;
+        let qe_validity =
+            validate_qe_identityv2(quote_header.tee_type, &qeidentityv2, &tcb_signing_cert)?
+                .validate_or_error(current_time)
+                .context("QEIdentity is not valid")?;
+        (validity.with_other(qe_validity), qeidentityv2)
+    };
+
+    // validate QE Report and Quote Body
+    let (qe_tcb_status, advisory_ids, pck_cert_sgx_extensions) = {
         let (qe_tcb_status, advisory_ids) = verify_qe_report(
             qe_report,
             ecdsa_attestation_pubkey,
             qe_auth_data,
             &qeidentityv2,
-            pck_leaf_cert,
+            &pck_leaf_cert,
             qe_report_signature,
         )?;
         verify_quote_attestation(
@@ -162,7 +159,6 @@ fn common_verify_and_fetch_tcb(
         .context("Invalid quote attestation")?;
 
         (
-            validity.with_other(pck_validity),
             qe_tcb_status,
             advisory_ids,
             extract_sgx_extensions(&pck_leaf_cert),

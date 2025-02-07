@@ -73,12 +73,18 @@ pub fn gen_crl(
     Ok(crl)
 }
 
+pub fn gen_crl_der(
+    issuer_cert: &X509Ref,
+    issuer_pkey: &PKeyRef<Private>,
+    revoked_certs: &[X509],
+) -> Result<Vec<u8>, anyhow::Error> {
+    Ok(gen_crl(issuer_cert, issuer_pkey, revoked_certs)?.to_der()?)
+}
+
 pub fn gen_tcb_signing_ca(
     root_cert: &X509Ref,
     root_pkey: &PKeyRef<Private>,
-
     tcb_signing_pkey: &PKeyRef<Private>,
-
     validity: Validity,
 ) -> Result<X509, anyhow::Error> {
     let mut builder = X509Builder::new()?;

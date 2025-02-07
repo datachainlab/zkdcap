@@ -71,7 +71,7 @@ pub fn verify_certificate(
     verify_p256_signature_der(data, signature, public_key)
 }
 
-/// Verifies the signature of a CRL using the public key of the signer certificate.
+/// Verifies the signature of a CRL using the public key of the signer certificate and checks that the issuer matches.
 pub fn verify_crl_signature(
     crl: &CertificateRevocationList,
     signer_cert: &X509Certificate,

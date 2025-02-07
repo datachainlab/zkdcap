@@ -21,10 +21,6 @@ mod tests {
     use crate::utils::quotes::{version_3::verify_quote_dcapv3, version_4::verify_quote_dcapv4};
     use crate::utils::tcbinfo::validate_tcbinfov3;
 
-    // Pinned September 10th, 2024, 6:49am GMT
-    // there's no need for constant sample collateral updates
-    const PINNED_TIME: u64 = 1725950994;
-
     #[test]
     fn test_root_crl_verify() {
         let intel_sgx_root_ca = parse_x509_der(include_bytes!(
@@ -45,9 +41,7 @@ mod tests {
         let sgx_signing_cert_pem =
             &parse_pem(include_bytes!("../../../data/v3/signing_cert.pem")).unwrap()[0];
         let sgx_signing_cert = parse_x509_der(&sgx_signing_cert_pem.contents).unwrap();
-        assert!(
-            validate_tcbinfov3(SGX_TEE_TYPE, &tcbinfov3, &sgx_signing_cert, 1737458686).is_ok()
-        );
+        assert!(validate_tcbinfov3(SGX_TEE_TYPE, &tcbinfov3, &sgx_signing_cert).is_ok());
     }
 
     #[test]
@@ -58,9 +52,7 @@ mod tests {
         let sgx_signing_cert_pem =
             &parse_pem(include_bytes!("../../../data/signing_cert.pem")).unwrap()[0];
         let sgx_signing_cert = parse_x509_der(&sgx_signing_cert_pem.contents).unwrap();
-        assert!(
-            validate_tcbinfov3(TDX_TEE_TYPE, &tcbinfov3, &sgx_signing_cert, PINNED_TIME).is_ok()
-        );
+        assert!(validate_tcbinfov3(TDX_TEE_TYPE, &tcbinfov3, &sgx_signing_cert).is_ok());
     }
 
     #[test]

@@ -276,6 +276,7 @@ impl Display for ValidityIntersection {
 }
 
 impl ValidityIntersection {
+    /// Create a new ValidityIntersection from a certificate validity.
     pub fn with_certificate(self, certificate_validity: &Validity) -> Result<Self> {
         let not_before = certificate_validity.not_before.timestamp().try_into()?;
         let not_after = certificate_validity.not_after.timestamp().try_into()?;
@@ -285,6 +286,7 @@ impl ValidityIntersection {
         })
     }
 
+    /// Create a new ValidityIntersection from intersection of two ValidityIntersections.
     pub fn with_other(self, other: Self) -> Self {
         ValidityIntersection {
             not_before_max: self.not_before_max.max(other.not_before_max),
@@ -292,14 +294,27 @@ impl ValidityIntersection {
         }
     }
 
+    /// Validate the intersection.
     pub fn validate(&self) -> bool {
         self.not_before_max < self.not_after_min
-            && self.not_before_max > 0
-            && self.not_after_min < u64::MAX
     }
 
-    pub fn validate_time(&self, timestamp_seconds: u64) -> bool {
-        timestamp_seconds >= self.not_before_max && timestamp_seconds <= self.not_after_min
+    /// Validate the intersection against the current time.
+    ///
+    /// * `current_timestamp` - the current time in seconds since the Unix epoch
+    pub fn validate_time(&self, current_timestamp: u64) -> bool {
+        current_timestamp >= self.not_before_max && current_timestamp <= self.not_after_min
+    }
+
+    /// Return Self if valid, otherwise returns the error message
+    ///
+    /// * `current_timestamp` - the current time in seconds since the Unix epoch
+    pub fn validate_or_error(self, current_timestamp: u64) -> Result<Self> {
+        if self.validate_time(current_timestamp) {
+            Ok(self)
+        } else {
+            bail!("invalid ValidityIntersection: {}", self)
+        }
     }
 }
 

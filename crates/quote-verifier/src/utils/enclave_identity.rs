@@ -7,12 +7,11 @@ use crate::types::{
 use crate::utils::crypto::verify_p256_signature_bytes;
 use crate::{Result, X509Certificate};
 
-/// validate_qe_identityv2 validates a QE identity v2 against the TCB signing certificate
+/// Validates a QE identity v2 against the TCB signing certificate
 pub fn validate_qe_identityv2(
     tee_type: u32,
     qe_identityv2: &EnclaveIdentityV2,
     tcb_signing_pubkey: &X509Certificate,
-    current_time: u64,
 ) -> Result<ValidityIntersection> {
     // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L271
     if qe_identityv2.enclave_identity.version != 2 {
@@ -52,16 +51,6 @@ pub fn validate_qe_identityv2(
         .next_update()?
         .timestamp()
         .try_into()?;
-
-    // check that the current time is between the issue_date and next_update_date
-    if current_time < issue_date_seconds || current_time > next_update_seconds {
-        bail!(
-            "Enclave identity is not valid for the current time: {} < {} < {}",
-            issue_date_seconds,
-            current_time,
-            next_update_seconds
-        );
-    }
 
     Ok(ValidityIntersection {
         not_before_max: issue_date_seconds,
@@ -129,7 +118,6 @@ mod tests {
             SGX_TEE_TYPE,
             &enclave_identity,
             &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
-            1740000000,
         );
         assert!(res.is_ok(), "{:?}", res);
         let validity = res.unwrap();
@@ -137,16 +125,5 @@ mod tests {
         // The validity should reflect the issue date and next update date of the QE identity
         assert_eq!(validity.not_before_max, 1740000000);
         assert_eq!(validity.not_after_min, 1740000000 + 1000);
-
-        assert!(
-            validate_qe_identityv2(
-                SGX_TEE_TYPE,
-                &enclave_identity,
-                &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
-                1740000000 - 1
-            )
-            .is_err(),
-            "QE identity should be invalid before issue date"
-        );
     }
 }
