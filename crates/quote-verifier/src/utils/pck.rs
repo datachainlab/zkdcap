@@ -13,22 +13,11 @@ use crate::Result;
 /// - verify that `sgx_pck_crl` is signed by the PCK Platform/Processor CA cert
 /// - check that the certificates used in the certchain are not revoked
 pub fn verify_pck_certchain<'a>(
-    certchain: Vec<X509Certificate<'a>>,
+    pck_leaf_cert: &X509Certificate<'a>,
+    pck_issuer_cert: &X509Certificate<'a>,
     intel_sgx_root_cert: &X509Certificate<'_>,
     intel_crls: &IntelSgxCrls,
-) -> Result<(X509Certificate<'a>, ValidityIntersection)> {
-    // certchain in the cert_data whose type is 5 should have 3 certificates:
-    // PCK leaf, PCK issuer, and Root CA
-    if certchain.len() != 3 {
-        bail!("Invalid PCK Cert Chain");
-    }
-
-    // extract the leaf and issuer certificates, but ignore the root cert
-    let (pck_leaf_cert, pck_issuer_cert) = {
-        let mut iter = certchain.into_iter();
-        (iter.next().unwrap(), iter.next().unwrap())
-    };
-
+) -> Result<ValidityIntersection> {
     // we'll check what kind of cert is it, and validate the appropriate CRL
     if get_x509_issuer_cn(&pck_leaf_cert) != get_x509_subject_cn(&pck_issuer_cert) {
         bail!("PCK Leaf Cert and Issuer Cert do not match");
@@ -52,7 +41,7 @@ pub fn verify_pck_certchain<'a>(
     let validity = ValidityIntersection::try_from(&pck_leaf_cert.validity)?
         .with_certificate(&pck_issuer_cert.validity)?;
 
-    Ok((pck_leaf_cert, validity))
+    Ok(validity)
 }
 
 #[cfg(test)]
@@ -100,12 +89,9 @@ mod tests {
         let root_cert_der = root_cert.to_der().unwrap();
 
         let res = verify_pck_certchain(
-            vec![
-                to_certificate(&pck_cert_der).unwrap(),
-                to_certificate(&pck_cert_processor_cert_der).unwrap(),
-                to_certificate(&root_cert_der).unwrap(),
-            ],
-            &to_certificate(&root_cert.to_der().unwrap()).unwrap(),
+            &to_certificate(&pck_cert_der).unwrap(),
+            &to_certificate(&pck_cert_processor_cert_der).unwrap(),
+            &to_certificate(&root_cert_der).unwrap(),
             &IntelSgxCrls::new(
                 CertificateRevocationList::from_der(root_ca_crl.to_der().unwrap().as_ref())
                     .unwrap()

@@ -130,8 +130,18 @@ fn common_verify_and_fetch_tcb(
             bail!("QE Cert Type must be 5");
         }
         let certchain_pems = parse_pem(&qe_cert_data.cert_data)?;
-        let (pck_leaf_cert, pck_validity) = verify_pck_certchain(
-            parse_certchain(&certchain_pems)?,
+        let certchain = parse_certchain(&certchain_pems)?;
+        // certchain in the cert_data whose type is 5 should have 3 certificates:
+        // PCK leaf, PCK issuer, and Root CA
+        if certchain.len() != 3 {
+            bail!("Invalid Certchain length");
+        }
+        // extract the leaf and issuer certificates, but ignore the root cert as we already have it
+        let pck_leaf_cert = &certchain[0];
+        let pck_issuer_cert = &certchain[1];
+        let pck_validity = verify_pck_certchain(
+            pck_leaf_cert,
+            pck_issuer_cert,
             &intel_sgx_root_cert,
             &intel_crls,
         )?;
@@ -140,7 +150,7 @@ fn common_verify_and_fetch_tcb(
             ecdsa_attestation_pubkey,
             qe_auth_data,
             &qeidentityv2,
-            &pck_leaf_cert,
+            pck_leaf_cert,
             qe_report_signature,
         )?;
         verify_quote_attestation(
