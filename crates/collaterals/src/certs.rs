@@ -156,7 +156,7 @@ pub fn gen_pck_cert_ca(
     pck_ca: PckCa,
     root_cert: &X509Ref,
     root_pkey: &PKeyRef<Private>,
-    pck_cert_processor_pkey: &PKeyRef<Private>,
+    pck_cert_ca_pkey: &PKeyRef<Private>,
     validity: Validity,
 ) -> Result<X509, anyhow::Error> {
     let mut builder = X509Builder::new()?;
@@ -164,17 +164,17 @@ pub fn gen_pck_cert_ca(
     builder.set_issuer_name(root_cert.subject_name())?;
     builder.set_serial_number(
         Asn1Integer::from_bn(
-            BigNum::from_slice(&calc_skid(pck_cert_processor_pkey).as_slice())?.as_ref(),
+            BigNum::from_slice(&calc_skid(pck_cert_ca_pkey).as_slice())?.as_ref(),
         )?
         .as_ref(),
     )?;
     builder.set_subject_name(build_x509_name(pck_ca.cn())?.as_ref())?;
-    builder.set_pubkey(pck_cert_processor_pkey)?;
+    builder.set_pubkey(pck_cert_ca_pkey)?;
 
     builder.set_not_before(&validity.not_before())?;
     builder.set_not_after(&validity.not_after())?;
 
-    builder.append_extension(gen_skid(&pck_cert_processor_pkey))?;
+    builder.append_extension(gen_skid(&pck_cert_ca_pkey))?;
     builder.append_extension(gen_crl_distribution_points(
         "https://certificates.trustedservices.intel.com/IntelSGXRootCA.der",
     ))?;

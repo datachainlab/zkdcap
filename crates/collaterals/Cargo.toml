@@ -11,4 +11,4 @@ x509-parser = "0.15.1"
 der = { version = "0.7", features = ["derive"] }
 chrono = { version = "0.4" }
 
-openssl = { git = "https://github.com/gweisert/rust-openssl", rev = "812b73e01ffbcac6b7ba61fe801b2313269e5c7b", features = ["vendored"] }
+openssl = { git = "https://github.com/datachainlab/rust-openssl", rev = "2d12d80f48163c729e31a12fddc24f411a2b79a0", features = ["vendored"] }

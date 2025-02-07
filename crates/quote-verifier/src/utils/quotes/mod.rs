@@ -16,13 +16,13 @@ use crate::types::quotes::{
 use crate::types::tcbinfo::TcbInfo;
 use crate::types::{EnclaveIdentityV2TcbStatus, Status, TcbInfoV3TcbStatus, ValidityIntersection};
 use crate::utils::cert::{
-    extract_sgx_extensions, get_x509_issuer_cn, get_x509_subject_cn, parse_certchain, parse_pem,
-    verify_certchain_signature, verify_certificate, verify_crl_signature,
+    extract_sgx_extensions, parse_certchain, parse_pem, verify_certificate, verify_crl_signature,
 };
 use crate::utils::crypto::verify_p256_signature_bytes;
 use crate::utils::enclave_identity::get_qe_tcbstatus;
 use crate::utils::enclave_identity::validate_qe_identityv2;
 use crate::utils::hash::sha256sum;
+use crate::utils::pck::verify_pck_certchain;
 use crate::utils::tcbinfo::validate_tcbinfov3;
 use crate::Result;
 
@@ -311,53 +311,6 @@ fn validate_qe_report_data(
     let mut recomputed_report_data = [0u8; 64];
     recomputed_report_data[..32].copy_from_slice(&sha256sum(&verification_data));
     recomputed_report_data == report_data
-}
-
-/// do the following checks:
-/// - verify that the cert chain signatures are valid
-/// - verify that `sgx_pck_crl` is signed by the PCK Platform/Processor CA cert
-/// - check that the certificates used in the certchain are not revoked
-fn verify_pck_certchain<'a>(
-    certchain: Vec<X509Certificate<'a>>,
-    intel_sgx_root_cert: &X509Certificate<'_>,
-    intel_crls: &IntelSgxCrls,
-) -> Result<(X509Certificate<'a>, ValidityIntersection)> {
-    // certchain in the cert_data whose type is 5 should have 3 certificates:
-    // PCK leaf, PCK issuer, and Root CA
-    if certchain.len() != 3 {
-        bail!("Invalid PCK Cert Chain");
-    }
-
-    // extract the leaf and issuer certificates, but ignore the root cert
-    let (pck_leaf_cert, pck_issuer_cert) = {
-        let mut iter = certchain.into_iter();
-        (iter.next().unwrap(), iter.next().unwrap())
-    };
-
-    // we'll check what kind of cert is it, and validate the appropriate CRL
-    if get_x509_issuer_cn(&pck_leaf_cert) != get_x509_subject_cn(&pck_issuer_cert) {
-        bail!("PCK Leaf Cert and Issuer Cert do not match");
-    }
-
-    // verify that the cert chain signatures are valid
-    verify_certchain_signature(&[&pck_leaf_cert, &pck_issuer_cert], intel_sgx_root_cert)
-        .context("Invalid PCK Chain")?;
-
-    // check that `sgx_pck_crl` is signed by the PCK Platform/Processor CA cert
-    verify_crl_signature(&intel_crls.sgx_pck_crl, &pck_issuer_cert)
-        .context("Invalid PCK Issuer CRL")?;
-
-    // checks that the certificates used in the certchain are not revoked
-    for cert in [&pck_leaf_cert, &pck_issuer_cert] {
-        if intel_crls.is_cert_revoked(cert)? {
-            bail!("Certificate is revoked: {:?}", cert);
-        }
-    }
-
-    let validity = ValidityIntersection::try_from(&pck_leaf_cert.validity)?
-        .with_certificate(&pck_issuer_cert.validity)?;
-
-    Ok((pck_leaf_cert, validity))
 }
 
 // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/16b7291a7a86e486fdfcf1dfb4be885c0cc00b4e/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L271-L312
