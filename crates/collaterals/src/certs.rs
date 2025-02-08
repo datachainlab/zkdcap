@@ -291,11 +291,13 @@ impl Validity {
     }
 
     pub fn not_before(&self) -> Asn1Time {
-        Asn1Time::from_unix(self.not_before).unwrap()
+        let t = chrono::DateTime::from_timestamp(self.not_before, 0).unwrap();
+        Asn1Time::from_str_x509(t.format("%Y%m%d%H%M%SZ").to_string().as_str()).unwrap()
     }
 
     pub fn not_after(&self) -> Asn1Time {
-        Asn1Time::from_unix(self.not_after).unwrap()
+        let t = chrono::DateTime::from_timestamp(self.not_after, 0).unwrap();
+        Asn1Time::from_str_x509(t.format("%Y%m%d%H%M%SZ").to_string().as_str()).unwrap()
     }
 }
 
