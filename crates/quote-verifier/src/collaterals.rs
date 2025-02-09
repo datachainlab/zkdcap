@@ -1,11 +1,10 @@
-use super::enclave_identity::EnclaveIdentityV2;
-use super::tcbinfo::TcbInfoV3;
-use crate::{
-    utils::cert::{parse_crl_der, parse_x509_der},
-    Result,
-};
 use anyhow::bail;
+use dcap_types::enclave_identity::EnclaveIdentityV2;
+use dcap_types::tcbinfo::TcbInfoV3;
+use dcap_types::utils::{parse_crl_der, parse_x509_der};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
+
+use crate::Result;
 
 /**
  * IntelCollateral is a struct that holds the collateral data that is required to verify the

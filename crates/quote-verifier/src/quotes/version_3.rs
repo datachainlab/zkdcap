@@ -1,12 +1,18 @@
 use super::{
     check_quote_header, common_verify_and_fetch_tcb, converge_tcb_status_with_qe_tcb, Result,
 };
-use crate::constants::VERIFIER_VERSION;
-use crate::types::quotes::{body::QuoteBody, version_3::QuoteV3};
-use crate::types::{collaterals::IntelCollateral, tcbinfo::TcbInfo, VerifiedOutput};
-use crate::utils::cert::{get_sgx_tdx_fmspc_tcbstatus_v3, merge_advisory_ids};
-use crate::utils::hash::keccak256sum;
+use crate::{
+    cert::{get_sgx_tdx_fmspc_tcbstatus_v3, merge_advisory_ids},
+    collaterals::IntelCollateral,
+    crypto::keccak256sum,
+    verifier::VerifiedOutput,
+    VERIFIER_VERSION,
+};
 use anyhow::{bail, Context};
+use dcap_types::{
+    quotes::{body::QuoteBody, version_3::QuoteV3},
+    tcbinfo::TcbInfo,
+};
 
 pub fn verify_quote_dcapv3(
     quote: &QuoteV3,

@@ -1,11 +1,11 @@
-use crate::types::{
+use dcap_collaterals::openssl::pkey::{PKeyRef, Private};
+use dcap_collaterals::utils::sign;
+use dcap_types::{
     enclave_identity::{EnclaveIdentityV2, EnclaveIdentityV2Inner},
     tcbinfo::{TcbInfoV3, TcbInfoV3Inner},
 };
-use dcap_collaterals::openssl::pkey::{PKeyRef, Private};
-use dcap_collaterals::utils::sign;
 
-pub fn gen_enclave_identity(
+pub(crate) fn gen_enclave_identity(
     pkey: &PKeyRef<Private>,
     enclave_identity: EnclaveIdentityV2Inner,
 ) -> Result<EnclaveIdentityV2, anyhow::Error> {
@@ -17,7 +17,7 @@ pub fn gen_enclave_identity(
     })
 }
 
-pub fn gen_tcb_info_v3(
+pub(crate) fn gen_tcb_info_v3(
     pkey: &PKeyRef<Private>,
     tcb_info: TcbInfoV3Inner,
 ) -> Result<TcbInfoV3, anyhow::Error> {

@@ -1,31 +1,31 @@
 pub mod version_3;
 pub mod version_4;
 
+use crate::cert::{parse_certchain, verify_crl_signature};
+use crate::collaterals::IntelCollateral;
+use crate::crl::IntelSgxCrls;
+use crate::crypto::sha256sum;
+use crate::crypto::verify_p256_signature_bytes;
+use crate::enclave_identity::get_qe_tcbstatus;
+use crate::enclave_identity::validate_qe_identityv2;
+use crate::pck::validate_pck_cert;
+use crate::tcbinfo::validate_tcb_signing_certificate;
+use crate::tcbinfo::validate_tcbinfov3;
+use crate::verifier::ValidityIntersection;
+use crate::Result;
 use anyhow::{bail, Context};
-use x509_parser::certificate::X509Certificate;
-
-use crate::constants::{ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID};
-use crate::types::cert::SgxExtensions;
-use crate::types::collaterals::IntelCollateral;
-use crate::types::crl::IntelSgxCrls;
-use crate::types::enclave_identity::EnclaveIdentityV2;
-use crate::types::quotes::{
+use dcap_types::cert::extract_sgx_extensions;
+use dcap_types::cert::SgxExtensions;
+use dcap_types::enclave_identity::EnclaveIdentityV2;
+use dcap_types::quotes::{
     body::{EnclaveReport, QuoteBody},
     CertData, QuoteHeader,
 };
-use crate::types::tcbinfo::TcbInfo;
-use crate::types::{EnclaveIdentityV2TcbStatus, Status, TcbInfoV3TcbStatus, ValidityIntersection};
-use crate::utils::cert::{
-    extract_sgx_extensions, parse_certchain, parse_pem, verify_crl_signature,
-};
-use crate::utils::crypto::verify_p256_signature_bytes;
-use crate::utils::enclave_identity::get_qe_tcbstatus;
-use crate::utils::enclave_identity::validate_qe_identityv2;
-use crate::utils::hash::sha256sum;
-use crate::utils::pck::validate_pck_cert;
-use crate::utils::tcbinfo::validate_tcb_signing_certificate;
-use crate::utils::tcbinfo::validate_tcbinfov3;
-use crate::Result;
+use dcap_types::tcbinfo::TcbInfo;
+use dcap_types::utils::parse_pem;
+use dcap_types::{EnclaveIdentityV2TcbStatus, Status, TcbInfoV3TcbStatus};
+use dcap_types::{ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID};
+use x509_parser::certificate::X509Certificate;
 
 /// common_verify_and_fetch_tcb is a common function that verifies the quote and fetches the TCB info
 ///

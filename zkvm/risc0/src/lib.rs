@@ -6,7 +6,7 @@ pub use methods::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dcap_quote_verifier::types::VerifiedOutput;
+    use dcap_quote_verifier::verifier::VerifiedOutput;
     use risc0_zkvm::{ExecutorEnv, LocalProver, Prover, ProverOpts, VerifierContext};
 
     #[test]

@@ -724,14 +724,22 @@ version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
- "chrono",
+ "dcap-types",
  "hex",
  "p256",
- "serde",
  "serde_json",
  "sha2",
  "sha3",
- "time",
+ "x509-parser",
+]
+
+[[package]]
+name = "dcap-types"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "serde",
  "x509-parser",
 ]
 

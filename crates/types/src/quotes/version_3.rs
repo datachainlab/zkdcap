@@ -1,8 +1,7 @@
 // https://download.01.org/intel-sgx/latest/dcap-latest/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf
 
-use crate::Result;
-
 use super::{body::EnclaveReport, CertData, QeAuthData, QuoteHeader};
+use crate::Result;
 
 // high level sgx quote structure
 // [48 - header] [384 - isv enclave report] [4 - quote signature length] [var - quote signature]

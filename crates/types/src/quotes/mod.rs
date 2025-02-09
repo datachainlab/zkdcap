@@ -1,12 +1,14 @@
-use crate::Result;
-
-use super::cert::Certificates;
+use crate::{
+    utils::{parse_x509_der_multi, pem_to_der},
+    Result,
+};
 
 pub mod body;
 pub mod version_3;
 pub mod version_4;
 
 use body::EnclaveReport;
+use x509_parser::prelude::X509Certificate;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuoteHeader {
@@ -180,5 +182,27 @@ impl QeReportCertData {
             qe_auth_data,
             qe_cert_data,
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Certificates {
+    pub certs_der: Vec<u8>,
+}
+
+impl Certificates {
+    pub fn from_der(certs_der: &[u8]) -> Self {
+        Self {
+            certs_der: certs_der.to_vec(),
+        }
+    }
+
+    pub fn from_pem(pem_bytes: &[u8]) -> Result<Self> {
+        let certs_der = pem_to_der(pem_bytes)?;
+        Ok(Self::from_der(&certs_der))
+    }
+
+    pub fn get_certs(&self) -> Result<Vec<X509Certificate>> {
+        parse_x509_der_multi(&self.certs_der)
     }
 }

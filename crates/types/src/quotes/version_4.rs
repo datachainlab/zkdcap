@@ -1,10 +1,6 @@
-use anyhow::bail;
-
 use super::{body::*, CertData, QuoteHeader};
-use crate::{
-    constants::{ENCLAVE_REPORT_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN, TDX_TEE_TYPE},
-    Result,
-};
+use crate::{Result, ENCLAVE_REPORT_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN, TDX_TEE_TYPE};
+use anyhow::bail;
 
 #[derive(Clone, Debug)]
 pub struct QuoteV4 {

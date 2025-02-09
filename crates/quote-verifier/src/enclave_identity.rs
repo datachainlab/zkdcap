@@ -1,11 +1,10 @@
+use crate::crypto::verify_p256_signature_bytes;
+use crate::verifier::ValidityIntersection;
+use crate::Result;
 use anyhow::{bail, Context};
-
-use crate::constants::{SGX_TEE_TYPE, TDX_TEE_TYPE};
-use crate::types::{
-    enclave_identity::EnclaveIdentityV2, EnclaveIdentityV2TcbStatus, ValidityIntersection,
-};
-use crate::utils::crypto::verify_p256_signature_bytes;
-use crate::{Result, X509Certificate};
+use dcap_types::{enclave_identity::EnclaveIdentityV2, EnclaveIdentityV2TcbStatus};
+use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
+use x509_parser::prelude::X509Certificate;
 
 /// Validates a QE identity v2 against the TCB signing certificate
 pub fn validate_qe_identityv2(
@@ -79,10 +78,7 @@ pub fn get_qe_tcbstatus(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        constants::SGX_TEE_TYPE,
-        utils::{enclave_identity::validate_qe_identityv2, tests::gen_enclave_identity},
-    };
+    use crate::tests::gen_enclave_identity;
     use dcap_collaterals::{
         certs::{gen_sgx_intel_root_ca, gen_tcb_signing_ca, Validity},
         utils::{gen_key, to_certificate, unix_timestamp_to_rfc3339},
@@ -105,7 +101,7 @@ mod tests {
 
         let enclave_identity = {
             let mut id = serde_json::from_slice::<EnclaveIdentityV2>(
-                include_bytes!("../../../../data/v3/qeidentityv2.json").as_slice(),
+                include_bytes!("../../../data/v3/qeidentityv2.json").as_slice(),
             )
             .unwrap()
             .enclave_identity;

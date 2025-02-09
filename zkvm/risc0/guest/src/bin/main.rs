@@ -1,6 +1,6 @@
-use dcap_quote_verifier::types::collaterals::IntelCollateral;
+use dcap_quote_verifier::collaterals::IntelCollateral;
 use dcap_quote_verifier::types::quotes::version_3::QuoteV3;
-use dcap_quote_verifier::utils::quotes::version_3::verify_quote_dcapv3;
+use dcap_quote_verifier::quotes::version_3::verify_quote_dcapv3;
 use risc0_zkvm::guest::env;
 
 fn main() {

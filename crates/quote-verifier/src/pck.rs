@@ -1,9 +1,9 @@
 use anyhow::{bail, Context};
 use x509_parser::certificate::X509Certificate;
 
-use crate::types::crl::IntelSgxCrls;
-use crate::types::ValidityIntersection;
-use crate::utils::cert::{get_x509_issuer_cn, get_x509_subject_cn, verify_certchain_signature};
+use crate::cert::{get_x509_issuer_cn, get_x509_subject_cn, verify_certchain_signature};
+use crate::crl::IntelSgxCrls;
+use crate::verifier::ValidityIntersection;
 use crate::Result;
 
 /**

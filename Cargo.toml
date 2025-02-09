@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/types",
     "crates/quote-verifier",
     "crates/collaterals",
 ]

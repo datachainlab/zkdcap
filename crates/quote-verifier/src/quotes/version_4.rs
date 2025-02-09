@@ -1,17 +1,19 @@
-use anyhow::{bail, Context};
-
 use super::{
     check_quote_header, common_verify_and_fetch_tcb, converge_tcb_status_with_qe_tcb, Result,
 };
-use crate::constants::{SGX_TEE_TYPE, VERIFIER_VERSION};
-use crate::types::quotes::body::QuoteBody;
-use crate::types::quotes::{version_4::QuoteV4, CertDataType};
-use crate::types::{collaterals::IntelCollateral, tcbinfo::TcbInfo, VerifiedOutput};
-use crate::types::{TcbInfoV3TcbStatus, TdxModuleTcbValidationStatus};
-use crate::utils::cert::{get_sgx_tdx_fmspc_tcbstatus_v3, merge_advisory_ids};
-use crate::utils::hash::sha256sum;
-use crate::utils::tdx_module::{
-    converge_tcb_status_with_tdx_module_tcb, get_tdx_module_identity_and_tcb,
+use crate::{
+    cert::{get_sgx_tdx_fmspc_tcbstatus_v3, merge_advisory_ids},
+    collaterals::IntelCollateral,
+    crypto::sha256sum,
+    tdx_module::{converge_tcb_status_with_tdx_module_tcb, get_tdx_module_identity_and_tcb},
+    verifier::VerifiedOutput,
+    VERIFIER_VERSION,
+};
+use anyhow::{bail, Context};
+use dcap_types::{
+    quotes::{body::QuoteBody, version_4::QuoteV4, CertDataType},
+    tcbinfo::TcbInfo,
+    TcbInfoV3TcbStatus, TdxModuleTcbValidationStatus, SGX_TEE_TYPE,
 };
 
 pub fn verify_quote_dcapv4(

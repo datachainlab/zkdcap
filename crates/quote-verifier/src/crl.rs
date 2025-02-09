@@ -1,5 +1,5 @@
-use super::ValidityIntersection;
-use crate::{utils::cert::get_crl_uri, Result};
+use crate::cert::get_crl_uri;
+use crate::{verifier::ValidityIntersection, Result};
 use anyhow::{anyhow, bail};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 

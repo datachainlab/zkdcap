@@ -1,25 +1,36 @@
-pub mod constants;
-pub mod types;
-pub mod utils;
-
-use x509_parser::certificate::X509Certificate;
+pub mod cert;
+pub mod collaterals;
+pub mod crl;
+pub mod crypto;
+pub mod enclave_identity;
+pub mod pck;
+pub mod quotes;
+pub mod tcbinfo;
+pub mod tdx_module;
+#[cfg(test)]
+pub mod tests;
+pub mod verifier;
 
 pub use anyhow::Error;
+pub use dcap_types as types;
+
+pub const VERIFIER_VERSION: u16 = 0;
+
 type Result<T> = core::result::Result<T, anyhow::Error>;
 
 #[cfg(test)]
-mod tests {
-    use crate::constants::{SGX_TEE_TYPE, TDX_TEE_TYPE};
-    use crate::types::collaterals::IntelCollateral;
-    use crate::types::quotes::{version_3::QuoteV3, version_4::QuoteV4};
-    use crate::types::tcbinfo::TcbInfoV3;
-    use crate::types::{Status, VerifiedOutput};
-    use crate::utils::cert::{
-        parse_crl_der, parse_pem, parse_x509_der, pem_to_der, verify_crl_signature,
-    };
-    use crate::utils::hash::keccak256sum;
-    use crate::utils::quotes::{version_3::verify_quote_dcapv3, version_4::verify_quote_dcapv4};
-    use crate::utils::tcbinfo::validate_tcbinfov3;
+mod quote_verifier_tests {
+    use crate::cert::verify_crl_signature;
+    use crate::collaterals::IntelCollateral;
+    use crate::crypto::keccak256sum;
+    use crate::quotes::{version_3::verify_quote_dcapv3, version_4::verify_quote_dcapv4};
+    use crate::tcbinfo::validate_tcbinfov3;
+    use crate::verifier::VerifiedOutput;
+    use dcap_types::quotes::{version_3::QuoteV3, version_4::QuoteV4};
+    use dcap_types::tcbinfo::TcbInfoV3;
+    use dcap_types::utils::{parse_crl_der, parse_pem, parse_x509_der, pem_to_der};
+    use dcap_types::Status;
+    use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 
     #[test]
     fn test_root_crl_verify() {

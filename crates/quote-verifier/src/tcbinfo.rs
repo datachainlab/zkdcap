@@ -1,13 +1,13 @@
+use crate::crl::IntelSgxCrls;
+use crate::crypto::verify_p256_signature_bytes;
+use crate::verifier::ValidityIntersection;
+use crate::Result;
 use anyhow::{bail, Context};
+use dcap_types::tcbinfo::TcbInfoV3;
+use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
+use x509_parser::prelude::X509Certificate;
 
-use crate::constants::{SGX_TEE_TYPE, TDX_TEE_TYPE};
-use crate::types::crl::IntelSgxCrls;
-use crate::types::tcbinfo::TcbInfoV3;
-use crate::types::ValidityIntersection;
-use crate::utils::crypto::verify_p256_signature_bytes;
-use crate::{Result, X509Certificate};
-
-use crate::utils::cert::{get_x509_issuer_cn, get_x509_subject_cn, verify_certificate};
+use crate::cert::{get_x509_issuer_cn, get_x509_subject_cn, verify_certificate};
 
 /**
  * Validate the TCB Signing Certificate with the Root Certificate
@@ -95,7 +95,7 @@ pub fn validate_tcbinfov3(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::gen_tcb_info_v3;
+    use crate::tests::gen_tcb_info_v3;
     use dcap_collaterals::{
         certs::{
             gen_crl_der, gen_pck_cert_ca, gen_sgx_intel_root_ca, gen_tcb_signing_ca, PckCa,
@@ -252,7 +252,7 @@ mod tests {
 
         let tcb_info = {
             let mut tcb_info = serde_json::from_slice::<TcbInfoV3>(
-                include_bytes!("../../../../data/v3/tcbinfov3_00906ED50000.json").as_slice(),
+                include_bytes!("../../../data/v3/tcbinfov3_00906ED50000.json").as_slice(),
             )
             .unwrap()
             .tcb_info;

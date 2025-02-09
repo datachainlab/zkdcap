@@ -1,6 +1,7 @@
-use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
-
 use crate::Result;
+use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+use sha2::{Digest, Sha256};
+use sha3::Keccak256;
 
 // verify_p256_signature_bytes verifies a P256 ECDSA signature
 // using the provided data, signature, and public key.
@@ -22,4 +23,22 @@ pub fn verify_p256_signature_der(
     let signature = Signature::from_der(signature_der)?;
     let verifying_key = VerifyingKey::from_sec1_bytes(public_key)?;
     Ok(verifying_key.verify(data, &signature)?)
+}
+
+pub fn sha256sum(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let mut output = [0; 32];
+    output.copy_from_slice(&result);
+    output
+}
+
+pub fn keccak256sum(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let mut output = [0; 32];
+    output.copy_from_slice(&result);
+    output
 }
