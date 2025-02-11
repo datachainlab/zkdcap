@@ -739,6 +739,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "hex",
  "serde",
  "x509-parser",
 ]
