@@ -98,43 +98,30 @@ mod tests {
     use crate::tests::gen_tcb_info_v3;
     use dcap_collaterals::{
         certs::{
-            gen_crl_der, gen_pck_cert_ca, gen_sgx_intel_root_ca, gen_tcb_signing_ca, PckCa,
-            Validity,
+            gen_crl_der, gen_pck_cert_ca, gen_pck_certchain, gen_root_ca, gen_sgx_intel_root_ca,
+            gen_tcb_certchain, gen_tcb_signing_ca, PckCa, Validity,
         },
-        utils::{gen_key, to_certificate, unix_timestamp_to_rfc3339},
+        sgx_extensions::SgxExtensionsBuilder,
+        utils::{gen_key, parse_cert_der, unix_timestamp_to_rfc3339},
     };
     use x509_parser::prelude::{CertificateRevocationList, FromDer};
 
     #[test]
     fn test_tcb_signing_cert_validation() {
-        let root_key = gen_key();
-        let root_cert =
-            gen_sgx_intel_root_ca(&root_key, Validity::new_with_duration(1730000001, 1000))
-                .unwrap();
-        let pck_cert_processor_key = gen_key();
-        let pck_cert_processor_cert = gen_pck_cert_ca(
+        let root_ca = gen_root_ca(Validity::long_duration().into(), None).unwrap();
+        let root_ca_crl = root_ca.crl.to_der().unwrap();
+        let sgx_extensions = SgxExtensionsBuilder::new().build();
+        let pck_certchain = gen_pck_certchain(
+            &root_ca,
             PckCa::Processor,
-            &root_cert,
-            &root_key,
-            &pck_cert_processor_key,
-            Validity::new(1524607999, 2524607999),
+            &sgx_extensions,
+            Validity::new_with_duration(1730000001, 1000).into(),
+            None,
+            None,
         )
         .unwrap();
+        let pck_ca_crl = pck_certchain.pck_cert_crl.to_der().unwrap();
 
-        let root_ca_crl = gen_crl_der(&root_cert, &root_key, Default::default()).unwrap();
-        let pck_ca_crl = gen_crl_der(
-            &gen_pck_cert_ca(
-                PckCa::Processor,
-                &root_cert,
-                &root_key,
-                &pck_cert_processor_key,
-                Validity::new(1730000001, 1000),
-            )
-            .unwrap(),
-            &pck_cert_processor_key,
-            Default::default(),
-        )
-        .unwrap();
         let crls = IntelSgxCrls::new(
             CertificateRevocationList::from_der(root_ca_crl.as_ref())
                 .unwrap()
@@ -145,33 +132,29 @@ mod tests {
         )
         .unwrap();
 
-        let tcb_signing_pkey = gen_key();
-        let tcb_signing_cert = gen_tcb_signing_ca(
-            &root_cert,
-            &root_key,
-            &tcb_signing_pkey,
-            Validity::new_with_duration(1730000000, 1000),
+        let tcb_certchain = gen_tcb_certchain(
+            &root_ca,
+            Validity::new_with_duration(1730000000, 1000).into(),
         )
         .unwrap();
 
         {
             let res = validate_tcb_signing_certificate(
-                &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
-                &to_certificate(&root_cert.to_der().unwrap()).unwrap(),
+                &parse_cert_der(&tcb_certchain.cert.to_der().unwrap()).unwrap(),
+                &parse_cert_der(&root_ca.cert.to_der().unwrap()).unwrap(),
                 &crls,
             );
             assert!(res.is_ok(), "{:?}", res);
             let validity = res.unwrap();
-            assert_eq!(validity.not_before_max, 1730000001);
+            assert_eq!(validity.not_before_max, 1730000000);
             assert_eq!(validity.not_after_min, 1730001000);
         }
         {
-            let root_ca_crl =
-                gen_crl_der(&root_cert, &root_key, &[tcb_signing_cert.clone()]).unwrap();
-            let pck_ca_crl = gen_crl_der(
-                &pck_cert_processor_cert,
-                &pck_cert_processor_key,
-                Default::default(),
+            let root_ca_crl = gen_crl_der(
+                &root_ca.cert,
+                &root_ca.key,
+                &[tcb_certchain.cert.clone()],
+                None,
             )
             .unwrap();
             let crls = IntelSgxCrls::new(
@@ -184,8 +167,8 @@ mod tests {
             )
             .unwrap();
             let res = validate_tcb_signing_certificate(
-                &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
-                &to_certificate(&root_cert.to_der().unwrap()).unwrap(),
+                &parse_cert_der(&tcb_certchain.cert.to_der().unwrap()).unwrap(),
+                &parse_cert_der(&root_ca.cert.to_der().unwrap()).unwrap(),
                 &crls,
             );
             assert!(res.is_err(), "{:?}", res);
@@ -194,11 +177,11 @@ mod tests {
             }
         }
         {
-            let root_ca_crl = gen_crl_der(&root_cert, &root_key, &[]).unwrap();
             let pck_ca_crl = gen_crl_der(
-                &pck_cert_processor_cert,
-                &pck_cert_processor_key,
-                &[tcb_signing_cert.clone()],
+                &pck_certchain.pck_cert_ca,
+                &pck_certchain.pck_cert_ca_key,
+                &[tcb_certchain.cert.clone()],
+                None,
             )
             .unwrap();
             let crls = IntelSgxCrls::new(
@@ -211,8 +194,8 @@ mod tests {
             )
             .unwrap();
             let res = validate_tcb_signing_certificate(
-                &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
-                &to_certificate(&root_cert.to_der().unwrap()).unwrap(),
+                &parse_cert_der(&tcb_certchain.cert.to_der().unwrap()).unwrap(),
+                &parse_cert_der(&root_ca.cert.to_der().unwrap()).unwrap(),
                 &crls,
             );
             assert!(res.is_ok(), "{:?}", res);
@@ -220,15 +203,15 @@ mod tests {
         {
             let invalid_tcb_signing_cert = gen_pck_cert_ca(
                 PckCa::Processor,
-                &root_cert,
-                &root_key,
-                &tcb_signing_pkey,
+                &root_ca.cert,
+                &root_ca.key,
+                &tcb_certchain.key,
                 Validity::new_with_duration(1730000000, 1000),
             )
             .unwrap();
             let res = validate_tcb_signing_certificate(
-                &to_certificate(&invalid_tcb_signing_cert.to_der().unwrap()).unwrap(),
-                &to_certificate(&root_cert.to_der().unwrap()).unwrap(),
+                &parse_cert_der(&invalid_tcb_signing_cert.to_der().unwrap()).unwrap(),
+                &parse_cert_der(&root_ca.cert.to_der().unwrap()).unwrap(),
                 &crls,
             );
             assert!(res.is_err(), "{:?}", res);
@@ -264,7 +247,7 @@ mod tests {
         let res = validate_tcbinfov3(
             SGX_TEE_TYPE,
             &tcb_info,
-            &to_certificate(&tcb_signing_cert.to_der().unwrap()).unwrap(),
+            &parse_cert_der(&tcb_signing_cert.to_der().unwrap()).unwrap(),
         );
         assert!(res.is_ok(), "{:?}", res);
         let validity = res.unwrap();

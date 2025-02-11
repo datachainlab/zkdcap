@@ -5,6 +5,7 @@ pub mod crypto;
 pub mod enclave_identity;
 pub mod pck;
 pub mod quotes;
+pub mod sgx_extensions;
 pub mod tcbinfo;
 pub mod tdx_module;
 #[cfg(test)]

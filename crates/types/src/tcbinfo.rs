@@ -313,6 +313,20 @@ impl TcbInfoV3Inner {
     pub fn next_update(&self) -> Result<chrono::DateTime<chrono::FixedOffset>, chrono::ParseError> {
         chrono::DateTime::parse_from_rfc3339(&self.next_update)
     }
+
+    pub fn fmspc(&self) -> Result<[u8; 6], anyhow::Error> {
+        let mut fmspc = [0; 6];
+        let fmspc_bytes = hex::decode(&self.fmspc)?;
+        fmspc.copy_from_slice(&fmspc_bytes);
+        Ok(fmspc)
+    }
+
+    pub fn pce_id(&self) -> Result<[u8; 2], anyhow::Error> {
+        let mut pce_id = [0; 2];
+        let pce_id_bytes = hex::decode(&self.pce_id)?;
+        pce_id.copy_from_slice(&pce_id_bytes);
+        Ok(pce_id)
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -366,10 +380,10 @@ pub struct TcbInfoV3TcbLevelItem {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfoV3TcbLevel {
-    pub sgxtcbcomponents: Vec<TcbComponent>,
+    pub sgxtcbcomponents: [TcbComponent; 16],
     pub pcesvn: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tdxtcbcomponents: Option<Vec<TcbComponent>>,
+    pub tdxtcbcomponents: Option<[TcbComponent; 16]>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

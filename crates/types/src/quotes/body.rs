@@ -112,6 +112,29 @@ impl EnclaveReport {
 
         raw_bytes
     }
+
+    pub fn misc_select(&self) -> u32 {
+        u32::from_le_bytes(self.misc_select)
+    }
+}
+
+impl Default for EnclaveReport {
+    fn default() -> Self {
+        EnclaveReport {
+            cpu_svn: [0; 16],
+            misc_select: [0; 4],
+            reserved_1: [0; 28],
+            attributes: [0; 16],
+            mrenclave: [0; 32],
+            reserved_2: [0; 32],
+            mrsigner: [0; 32],
+            reserved_3: [0; 96],
+            isv_prod_id: 0,
+            isv_svn: 0,
+            reserved_4: [0; 60],
+            report_data: [0; 64],
+        }
+    }
 }
 
 // TD Attributes:
@@ -288,5 +311,27 @@ impl TD10ReportBody {
         raw_bytes[520..584].copy_from_slice(&self.report_data);
 
         raw_bytes
+    }
+}
+
+impl Default for TD10ReportBody {
+    fn default() -> Self {
+        TD10ReportBody {
+            tee_tcb_svn: [0; 16],
+            mrseam: [0; 48],
+            mrsignerseam: [0; 48],
+            seam_attributes: 0,
+            td_attributes: 0,
+            xfam: 0,
+            mrtd: [0; 48],
+            mrconfigid: [0; 48],
+            mrowner: [0; 48],
+            mrownerconfig: [0; 48],
+            rtmr0: [0; 48],
+            rtmr1: [0; 48],
+            rtmr2: [0; 48],
+            rtmr3: [0; 48],
+            report_data: [0; 64],
+        }
     }
 }

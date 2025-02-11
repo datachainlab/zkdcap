@@ -24,4 +24,5 @@ dcap-types      = { path = "../types" }
 default = []
 
 [dev-dependencies]
+serde_json   	 = { version = "1.0", features = ["preserve_order"] }
 dcap-collaterals = { path = "../collaterals" }

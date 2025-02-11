@@ -158,8 +158,55 @@ impl EnclaveIdentityV2Inner {
     pub fn issue_date(&self) -> Result<chrono::DateTime<chrono::FixedOffset>, chrono::ParseError> {
         chrono::DateTime::parse_from_rfc3339(&self.issue_date)
     }
+
     pub fn next_update(&self) -> Result<chrono::DateTime<chrono::FixedOffset>, chrono::ParseError> {
         chrono::DateTime::parse_from_rfc3339(&self.next_update)
+    }
+
+    pub fn mrsigner(&self) -> Result<[u8; 32], anyhow::Error> {
+        let mrsigner = hex::decode(&self.mrsigner)?;
+        if mrsigner.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid mrsigner length"));
+        }
+        let mut signer = [0u8; 32];
+        signer.copy_from_slice(&mrsigner);
+        Ok(signer)
+    }
+
+    pub fn miscselect_mask(&self) -> Result<u32, anyhow::Error> {
+        let miscselect_mask = hex::decode(&self.miscselect_mask)?;
+        if miscselect_mask.len() != 4 {
+            return Err(anyhow::anyhow!("Invalid miscselect mask length"));
+        }
+        Ok(u32::from_le_bytes(miscselect_mask.try_into().unwrap()))
+    }
+
+    pub fn miscselect(&self) -> Result<u32, anyhow::Error> {
+        let miscselect = hex::decode(&self.miscselect)?;
+        if miscselect.len() != 4 {
+            return Err(anyhow::anyhow!("Invalid miscselect length"));
+        }
+        Ok(u32::from_le_bytes(miscselect.try_into().unwrap()))
+    }
+
+    pub fn attributes_mask(&self) -> Result<[u8; 16], anyhow::Error> {
+        let attributes_mask = hex::decode(&self.attributes_mask)?;
+        if attributes_mask.len() != 16 {
+            return Err(anyhow::anyhow!("Invalid attributes mask length"));
+        }
+        let mut mask = [0u8; 16];
+        mask.copy_from_slice(&attributes_mask);
+        Ok(mask)
+    }
+
+    pub fn attributes(&self) -> Result<[u8; 16], anyhow::Error> {
+        let attributes = hex::decode(&self.attributes)?;
+        if attributes.len() != 16 {
+            return Err(anyhow::anyhow!("Invalid attributes length"));
+        }
+        let mut attr = [0u8; 16];
+        attr.copy_from_slice(&attributes);
+        Ok(attr)
     }
 }
 

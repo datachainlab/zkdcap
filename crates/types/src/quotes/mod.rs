@@ -10,7 +10,7 @@ pub mod version_4;
 use body::EnclaveReport;
 use x509_parser::prelude::X509Certificate;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct QuoteHeader {
     pub version: u16, // [2 bytes]
     // Version of the quote data structure - 4, 5
@@ -75,6 +75,12 @@ impl QuoteHeader {
     }
 }
 
+/// QeAuthData is Data that to be additionally 'signed' by the certification key.
+///
+/// Variable-length data chosen by the Quoting Enclave and signed by the Provisioning Certification Key (as a part of the Report Data in the QE Report).
+/// It can be used by the QE to add additional context to the ECDSA Attestation Key utilized by the QE. For example, this may indicate the customer, geography, network, or anything pertinent to the identity of the Quoting Enclave.
+/// Size should be set to 0 if there is no additional data.
+/// ref. p.71 https://download.01.org/intel-sgx/sgx-dcap/1.21/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QeAuthData {
     pub size: u16,
@@ -89,6 +95,9 @@ impl QeAuthData {
     }
 }
 
+/// CertData is Data required to verify the QE Report Signature depending on the value of the Certification Data Type
+///
+/// ref. p.72 https://download.01.org/intel-sgx/sgx-dcap/1.21/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CertData {
     pub cert_data_type: u16, // [2 bytes]

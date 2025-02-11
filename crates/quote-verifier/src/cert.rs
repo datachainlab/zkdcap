@@ -124,10 +124,18 @@ pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
     };
 
     // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L117
-    if sgx_extensions.fmspc.as_slice() != hex::decode(&tcbinfov3.tcb_info.fmspc)? {
-        bail!("FMSpc does not match");
-    } else if sgx_extensions.pceid.as_slice() != hex::decode(&tcbinfov3.tcb_info.pce_id)? {
-        bail!("PCEID does not match");
+    if sgx_extensions.fmspc != tcbinfov3.tcb_info.fmspc()? {
+        bail!(
+            "FMSPC does not match: {:x?} != {:x?}",
+            sgx_extensions.fmspc,
+            tcbinfov3.tcb_info.fmspc()?
+        );
+    } else if sgx_extensions.pceid != tcbinfov3.tcb_info.pce_id()? {
+        bail!(
+            "PCE ID does not match: {:x?} != {:x?}",
+            sgx_extensions.pceid,
+            tcbinfov3.tcb_info.pce_id()?
+        );
     }
 
     let mut sgx_tcb_status: Option<TcbInfoV3TcbStatus> = None;
@@ -171,18 +179,17 @@ pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
     }
 }
 
-fn match_sgxtcbcomp(tcb: &SgxExtensionTcbLevel, sgxtcbcomponents: &[TcbComponent]) -> bool {
-    let extension_tcbcomponents = extension_to_tcbcomponents(tcb);
+fn match_sgxtcbcomp(tcb: &SgxExtensionTcbLevel, sgxtcbcomponents: &[TcbComponent; 16]) -> bool {
     // Compare all of the SGX TCB Comp SVNs retrieved from the SGX PCK Certificate (from 01 to 16) with the corresponding values of SVNs in sgxtcbcomponents array of TCB Level.
     // If all SGX TCB Comp SVNs in the certificate are greater or equal to the corresponding values in TCB Level, then return true.
     // Otherwise, return false.
-    extension_tcbcomponents
-        .iter()
+    tcb.sgxtcbcompsvns()
+        .into_iter()
         .zip(sgxtcbcomponents.iter())
-        .all(|(ext, tcb)| ext.svn >= tcb.svn)
+        .all(|(ext, tcb)| ext >= tcb.svn)
 }
 
-fn match_tdxtcbcomp(tee_tcb_svn: &[u8; 16], tdxtcbcomponents: &[TcbComponent]) -> bool {
+fn match_tdxtcbcomp(tee_tcb_svn: &[u8; 16], tdxtcbcomponents: &[TcbComponent; 16]) -> bool {
     // Compare all of the TDX TCB Comp SVNs retrieved from the TDX Quote (from 01 to 16) with the corresponding values of SVNs in tdxtcbcomponents array of TCB Level.
     // If all TDX TCB Comp SVNs in the quote are greater or equal to the corresponding values in TCB Level, then return true.
     // Otherwise, return false.
@@ -190,92 +197,6 @@ fn match_tdxtcbcomp(tee_tcb_svn: &[u8; 16], tdxtcbcomponents: &[TcbComponent]) -
         .iter()
         .zip(tdxtcbcomponents.iter())
         .all(|(tee, tcb)| *tee >= tcb.svn)
-}
-
-fn extension_to_tcbcomponents(extension: &SgxExtensionTcbLevel) -> Vec<TcbComponent> {
-    let mut tcbcomponents = Vec::with_capacity(16);
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp01svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp02svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp03svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp04svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp05svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp06svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp07svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp08svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp09svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp10svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp11svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp12svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp13svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp14svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp15svn,
-        category: None,
-        type_: None,
-    });
-    tcbcomponents.push(TcbComponent {
-        svn: extension.sgxtcbcomp16svn,
-        category: None,
-        type_: None,
-    });
-
-    tcbcomponents
 }
 
 /// Merge two vectors of advisory ids into one vector

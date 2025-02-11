@@ -79,7 +79,11 @@ impl ValidityIntersection {
         if self.validate_time(current_timestamp) {
             Ok(self)
         } else {
-            bail!("invalid ValidityIntersection: {}", self)
+            bail!(
+                "invalid ValidityIntersection: {} current={}",
+                self,
+                current_timestamp
+            );
         }
     }
 }

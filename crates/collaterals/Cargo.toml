@@ -9,5 +9,8 @@ hex = "0.4"
 x509-parser = "0.15.1"
 der = { version = "0.7", features = ["alloc", "derive"] }
 chrono = { version = "0.4" }
+serde_json = { version = "1", features = ["preserve_order"] }
 
-openssl = { git = "https://github.com/datachainlab/rust-openssl", rev = "2d12d80f48163c729e31a12fddc24f411a2b79a0", features = ["vendored"] }
+openssl = { git = "https://github.com/datachainlab/rust-openssl", rev = "6fdf2f32721719d173bf909c97e982fe4e2e2819", features = ["vendored"] }
+
+dcap-types = { path = "../types" }

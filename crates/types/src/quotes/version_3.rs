@@ -80,4 +80,15 @@ impl QuoteSignatureDataV3 {
             qe_cert_data,
         })
     }
+
+    pub fn len(&self) -> u32 {
+        64 + 64
+            + 384
+            + 64
+            + 2
+            + self.qe_auth_data.size as u32
+            + 2
+            + 4
+            + self.qe_cert_data.cert_data_size
+    }
 }

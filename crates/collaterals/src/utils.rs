@@ -7,7 +7,7 @@ use openssl::{
     pkey::{PKey, PKeyRef, Private},
     sign::Signer,
 };
-use x509_parser::{certificate::X509Certificate, prelude::FromDer};
+use x509_parser::{certificate::X509Certificate, prelude::FromDer, x509::SubjectPublicKeyInfo};
 
 pub fn gen_key() -> PKey<Private> {
     let nid = Nid::X9_62_PRIME256V1; // NIST P-256 curve
@@ -39,7 +39,20 @@ pub fn sign(pkey: &PKeyRef<Private>, msg: &[u8]) -> Result<Vec<u8>, anyhow::Erro
         })
 }
 
-pub fn to_certificate<'a>(cert_der: &'a [u8]) -> Result<X509Certificate<'a>, anyhow::Error> {
+pub fn p256_prvkey_to_pubkey_bytes(pkey: &PKeyRef<Private>) -> Result<[u8; 64], anyhow::Error> {
+    let der = pkey
+        .public_key_to_der()
+        .map_err(|e| anyhow::anyhow!("Failed to get public key: {}", e))?;
+    let bz = SubjectPublicKeyInfo::from_der(der.as_slice())
+        .map_err(|e| anyhow::anyhow!("Failed to parse SubjectPublicKeyInfo: {}", e))
+        .map(|(_, spki)| spki.subject_public_key.data)?;
+    let mut pubkey = [0; 64];
+    // The first byte is 0x04, which is the tag for an uncompressed point.
+    pubkey.copy_from_slice(&bz[1..]);
+    Ok(pubkey)
+}
+
+pub fn parse_cert_der<'a>(cert_der: &'a [u8]) -> Result<X509Certificate<'a>, anyhow::Error> {
     let (_, c) = X509Certificate::from_der(cert_der)?;
     Ok(c)
 }
@@ -57,12 +70,12 @@ mod tests {
     use crate::certs::{gen_sgx_intel_root_ca, Validity};
 
     #[test]
-    fn test_to_certificate() {
+    fn test_parse_cert_der() {
         let pkey = gen_key();
         let cert = gen_sgx_intel_root_ca(&pkey, Validity::new(1524607999, 2524607999)).unwrap();
         println!("{}", String::from_utf8(cert.to_pem().unwrap()).unwrap());
         let bz = cert.to_der().unwrap();
-        let cert2 = to_certificate(bz.as_ref()).unwrap();
+        let cert2 = parse_cert_der(bz.as_ref()).unwrap();
         assert_eq!(
             cert2.serial.to_bytes_be(),
             cert.serial_number().to_bn().unwrap().to_vec()

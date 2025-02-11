@@ -1,10 +1,9 @@
-use anyhow::{bail, Context};
-use x509_parser::certificate::X509Certificate;
-
 use crate::cert::{get_x509_issuer_cn, get_x509_subject_cn, verify_certchain_signature};
 use crate::crl::IntelSgxCrls;
 use crate::verifier::ValidityIntersection;
 use crate::Result;
+use anyhow::{bail, Context};
+use x509_parser::certificate::X509Certificate;
 
 /**
  * Validate the PCK certificate
@@ -60,128 +59,113 @@ pub fn validate_pck_cert<'a>(
 
     Ok(validity)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use dcap_collaterals::{
-        certs::{
-            gen_crl_der, gen_pck_cert, gen_pck_cert_ca, gen_sgx_intel_root_ca, PckCa, Validity,
-        },
-        utils::{gen_key, to_certificate},
+        certs::{gen_crl_der, gen_pck_certchain, gen_root_ca, PckCa},
+        sgx_extensions::SgxExtensionsBuilder,
+        utils::parse_cert_der,
     };
     use x509_parser::prelude::{CertificateRevocationList, FromDer};
 
     #[test]
     fn test_validate_pck_cert() {
-        let root_key = gen_key();
-        let root_cert =
-            gen_sgx_intel_root_ca(&root_key, Validity::new(1524607999, 2524607999)).unwrap();
-        let pck_cert_processor_key = gen_key();
-        let pck_cert_processor_cert = gen_pck_cert_ca(
-            PckCa::Processor,
-            &root_cert,
-            &root_key,
-            &pck_cert_processor_key,
-            Validity::new(1524607999, 2524607999),
-        )
-        .unwrap();
-        let pck_cert_key = gen_key();
-        let pck_cert = gen_pck_cert(
-            &pck_cert_processor_cert,
-            &pck_cert_processor_key,
-            &pck_cert_key,
-            Validity::new(1524607999, 2524607999),
-        )
-        .unwrap();
-
-        let root_ca_crl = gen_crl_der(&root_cert, &root_key, Default::default()).unwrap();
-        let pck_ca_crl = gen_crl_der(
-            &pck_cert_processor_cert,
-            &pck_cert_processor_key,
-            Default::default(),
-        )
-        .unwrap();
-        let crls = IntelSgxCrls::new(
-            CertificateRevocationList::from_der(root_ca_crl.as_ref())
-                .unwrap()
-                .1,
-            CertificateRevocationList::from_der(pck_ca_crl.as_ref())
-                .unwrap()
-                .1,
-        )
-        .unwrap();
-
-        let pck_cert_der = pck_cert.to_der().unwrap();
-        let pck_cert_processor_cert_der = pck_cert_processor_cert.to_der().unwrap();
-        let root_cert_der = root_cert.to_der().unwrap();
-
-        {
-            let res = validate_pck_cert(
-                &to_certificate(&pck_cert_der).unwrap(),
-                &to_certificate(&pck_cert_processor_cert_der).unwrap(),
-                &to_certificate(&root_cert_der).unwrap(),
-                &crls,
-            );
-            assert!(res.is_ok(), "{:?}", res);
-        }
-        {
-            let root_ca_crl = gen_crl_der(&root_cert, &root_key, Default::default()).unwrap();
-            let pck_ca_crl = gen_crl_der(
-                &pck_cert_processor_cert,
-                &pck_cert_processor_key,
-                &[pck_cert.clone()],
+        let root_ca = gen_root_ca(None, None).unwrap();
+        let root_ca_crl = root_ca.crl.to_der().unwrap();
+        let sgx_extensions = SgxExtensionsBuilder::new().build();
+        let pck_certchains = vec![
+            gen_pck_certchain(
+                &root_ca,
+                PckCa::Processor,
+                &sgx_extensions,
+                None,
+                None,
+                None,
             )
-            .unwrap();
-            let crls = IntelSgxCrls::new(
-                CertificateRevocationList::from_der(root_ca_crl.as_ref())
-                    .unwrap()
-                    .1,
-                CertificateRevocationList::from_der(pck_ca_crl.as_ref())
-                    .unwrap()
-                    .1,
-            )
-            .unwrap();
+            .unwrap(),
+            gen_pck_certchain(&root_ca, PckCa::Platform, &sgx_extensions, None, None, None)
+                .unwrap(),
+        ];
+        for pck_certchain in pck_certchains {
+            let pck_ca_crl = pck_certchain.pck_cert_crl.to_der().unwrap();
+            {
+                let crls = IntelSgxCrls::new(
+                    CertificateRevocationList::from_der(root_ca_crl.as_ref())
+                        .unwrap()
+                        .1,
+                    CertificateRevocationList::from_der(pck_ca_crl.as_ref())
+                        .unwrap()
+                        .1,
+                )
+                .unwrap();
 
-            let res = validate_pck_cert(
-                &to_certificate(&pck_cert_der).unwrap(),
-                &to_certificate(&pck_cert_processor_cert_der).unwrap(),
-                &to_certificate(&root_cert_der).unwrap(),
-                &crls,
-            );
-            assert!(res.is_err(), "{:?}", res);
-            if let Err(e) = res {
-                assert!(e.to_string().starts_with("PCK cert is revoked"));
+                let res = validate_pck_cert(
+                    &parse_cert_der(&pck_certchain.pck_cert.to_der().unwrap()).unwrap(),
+                    &parse_cert_der(&pck_certchain.pck_cert_ca.to_der().unwrap()).unwrap(),
+                    &parse_cert_der(&root_ca.cert.to_der().unwrap()).unwrap(),
+                    &crls,
+                );
+                assert!(res.is_ok(), "{:?}", res);
             }
-        }
-        {
-            let root_ca_crl =
-                gen_crl_der(&root_cert, &root_key, &[pck_cert_processor_cert.clone()]).unwrap();
-            let pck_ca_crl = gen_crl_der(
-                &pck_cert_processor_cert,
-                &pck_cert_processor_key,
-                Default::default(),
-            )
-            .unwrap();
-            let crls = IntelSgxCrls::new(
-                CertificateRevocationList::from_der(root_ca_crl.as_ref())
-                    .unwrap()
-                    .1,
-                CertificateRevocationList::from_der(pck_ca_crl.as_ref())
-                    .unwrap()
-                    .1,
-            )
-            .unwrap();
 
-            let res = validate_pck_cert(
-                &to_certificate(&pck_cert_der).unwrap(),
-                &to_certificate(&pck_cert_processor_cert_der).unwrap(),
-                &to_certificate(&root_cert_der).unwrap(),
-                &crls,
-            );
-            assert!(res.is_err(), "{:?}", res);
-            if let Err(e) = res {
-                assert!(e.to_string().starts_with("PCK CA cert is revoked"));
+            {
+                let pck_ca_crl = gen_crl_der(
+                    &pck_certchain.pck_cert_ca,
+                    &pck_certchain.pck_cert_ca_key,
+                    &[pck_certchain.pck_cert.clone()],
+                    None,
+                )
+                .unwrap();
+                let crls = IntelSgxCrls::new(
+                    CertificateRevocationList::from_der(root_ca_crl.as_ref())
+                        .unwrap()
+                        .1,
+                    CertificateRevocationList::from_der(pck_ca_crl.as_ref())
+                        .unwrap()
+                        .1,
+                )
+                .unwrap();
+
+                let res = validate_pck_cert(
+                    &parse_cert_der(&pck_certchain.pck_cert.to_der().unwrap()).unwrap(),
+                    &parse_cert_der(&pck_certchain.pck_cert_ca.to_der().unwrap()).unwrap(),
+                    &parse_cert_der(&root_ca.cert.to_der().unwrap()).unwrap(),
+                    &crls,
+                );
+                assert!(res.is_err(), "{:?}", res);
+                if let Err(e) = res {
+                    assert!(e.to_string().starts_with("PCK cert is revoked"));
+                }
+            }
+            {
+                let root_ca_crl = gen_crl_der(
+                    &root_ca.cert,
+                    &root_ca.key,
+                    &[pck_certchain.pck_cert_ca.clone()],
+                    None,
+                )
+                .unwrap();
+                let crls = IntelSgxCrls::new(
+                    CertificateRevocationList::from_der(root_ca_crl.as_ref())
+                        .unwrap()
+                        .1,
+                    CertificateRevocationList::from_der(pck_ca_crl.as_ref())
+                        .unwrap()
+                        .1,
+                )
+                .unwrap();
+
+                let res = validate_pck_cert(
+                    &parse_cert_der(&pck_certchain.pck_cert.to_der().unwrap()).unwrap(),
+                    &parse_cert_der(&pck_certchain.pck_cert_ca.to_der().unwrap()).unwrap(),
+                    &parse_cert_der(&root_ca.cert.to_der().unwrap()).unwrap(),
+                    &crls,
+                );
+                assert!(res.is_err(), "{:?}", res);
+                if let Err(e) = res {
+                    assert!(e.to_string().starts_with("PCK CA cert is revoked"));
+                }
             }
         }
     }

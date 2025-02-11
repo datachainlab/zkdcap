@@ -9,12 +9,12 @@ use crate::crypto::verify_p256_signature_bytes;
 use crate::enclave_identity::get_qe_tcbstatus;
 use crate::enclave_identity::validate_qe_identityv2;
 use crate::pck::validate_pck_cert;
+use crate::sgx_extensions::extract_sgx_extensions;
 use crate::tcbinfo::validate_tcb_signing_certificate;
 use crate::tcbinfo::validate_tcbinfov3;
 use crate::verifier::ValidityIntersection;
 use crate::Result;
 use anyhow::{bail, Context};
-use dcap_types::cert::extract_sgx_extensions;
 use dcap_types::cert::SgxExtensions;
 use dcap_types::enclave_identity::EnclaveIdentityV2;
 use dcap_types::quotes::{
@@ -161,7 +161,7 @@ fn common_verify_and_fetch_tcb(
         (
             qe_tcb_status,
             advisory_ids,
-            extract_sgx_extensions(&pck_leaf_cert),
+            extract_sgx_extensions(&pck_leaf_cert)?,
         )
     };
 
@@ -225,7 +225,10 @@ fn verify_qe_report(
 
     // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L92
     // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L286
-    Ok(get_qe_tcbstatus(qe_report.isv_svn, qeidentityv2)?)
+    Ok(get_qe_tcbstatus(
+        qe_report.isv_svn,
+        &qeidentityv2.enclave_identity.tcb_levels,
+    )?)
 }
 
 /// Verify the attestation signature for the quote (header + body) using the attestation public key
@@ -243,7 +246,7 @@ fn verify_quote_attestation(
         QuoteBody::TD10QuoteBody(body) => data.extend_from_slice(&body.to_bytes()),
     };
 
-    // prefixed pub key
+    // 0x04 is the prefix for uncompressed P-256 public key
     let mut prefixed_pub_key = [4; 65];
     prefixed_pub_key[1..65].copy_from_slice(ecdsa_attestation_pubkey);
     verify_p256_signature_bytes(&data, ecdsa_attestation_signature, &prefixed_pub_key)
@@ -256,50 +259,47 @@ fn validate_qe_report(
     enclave_report: &EnclaveReport,
     qeidentityv2: &EnclaveIdentityV2,
 ) -> Result<()> {
-    {
-        let miscselect_mask = hex::decode(&qeidentityv2.enclave_identity.miscselect_mask)?;
-        let masked_miscselect = hex::decode(&qeidentityv2.enclave_identity.miscselect)?
-            .iter()
-            .zip(miscselect_mask.iter())
-            .map(|(a, m)| a & m)
-            .collect::<Vec<u8>>();
-        let masked_enclave_miscselect = enclave_report
-            .misc_select
-            .iter()
-            .zip(miscselect_mask.iter())
-            .map(|(a, m)| a & m)
-            .collect::<Vec<u8>>();
+    let miscselect_mask = qeidentityv2.enclave_identity.miscselect_mask()?;
+    let miscselect = qeidentityv2.enclave_identity.miscselect()?;
 
-        if masked_enclave_miscselect != masked_miscselect {
-            bail!("Enclave MiscSelect does not match");
-        }
+    if (enclave_report.misc_select() & miscselect_mask) != miscselect {
+        bail!(
+            "Enclave MiscSelect does not match: {:x} != {:x}",
+            enclave_report.misc_select(),
+            miscselect
+        );
     }
 
-    {
-        let attributes = hex::decode(&qeidentityv2.enclave_identity.attributes)?;
-        let attributes_mask = hex::decode(&qeidentityv2.enclave_identity.attributes_mask)?;
-        let masked_attributes = attributes
-            .iter()
-            .zip(attributes_mask.iter())
-            .map(|(a, m)| a & m)
-            .collect::<Vec<u8>>();
-        let masked_enclave_attributes = enclave_report
-            .attributes
-            .iter()
-            .zip(attributes_mask.iter())
-            .map(|(a, m)| a & m)
-            .collect::<Vec<u8>>();
-        if masked_enclave_attributes != masked_attributes {
-            bail!("Enclave Attributes does not match");
-        }
+    let attributes = qeidentityv2.enclave_identity.attributes()?;
+    let attributes_mask = qeidentityv2.enclave_identity.attributes_mask()?;
+    let masked_enclave_attributes = enclave_report
+        .attributes
+        .iter()
+        .zip(attributes_mask.iter())
+        .map(|(a, m)| a & m)
+        .collect::<Vec<u8>>();
+    if masked_enclave_attributes != attributes {
+        bail!(
+            "Enclave Attributes does not match: {:x?} != {:x?}",
+            masked_enclave_attributes,
+            attributes
+        );
     }
 
-    if enclave_report.mrsigner != hex::decode(&qeidentityv2.enclave_identity.mrsigner)?.as_slice() {
-        bail!("Enclave MrSigner does not match");
+    if enclave_report.mrsigner != qeidentityv2.enclave_identity.mrsigner()? {
+        bail!(
+            "Enclave MrSigner does not match: {:x?} != {:x?}",
+            enclave_report.mrsigner,
+            qeidentityv2.enclave_identity.mrsigner()?
+        );
     }
 
     if enclave_report.isv_prod_id != qeidentityv2.enclave_identity.isvprodid {
-        bail!("Enclave ISVProdID does not match");
+        bail!(
+            "Enclave ISVProdID does not match: {:x} != {:x}",
+            enclave_report.isv_prod_id,
+            qeidentityv2.enclave_identity.isvprodid
+        );
     }
 
     Ok(())
@@ -368,5 +368,25 @@ fn converge_tcb_status_with_qe_tcb(
         TcbInfoV3TcbStatus::OutOfDate => Status::TcbOutOfDate,
         TcbInfoV3TcbStatus::OutOfDateConfigurationNeeded => Status::TcbOutOfDateConfigurationNeeded,
         TcbInfoV3TcbStatus::Revoked => Status::TcbRevoked,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dcap_collaterals::{
+        quote::sign_isv_enclave_report,
+        utils::{gen_key, p256_prvkey_to_pubkey_bytes},
+    };
+
+    #[test]
+    fn test_verify_quote_attestation() {
+        let header = QuoteHeader::default();
+        let body = QuoteBody::SGXQuoteBody(EnclaveReport::default());
+        let attestation_key = gen_key();
+        let sig = sign_isv_enclave_report(&attestation_key, &header, &body).unwrap();
+        let pubkey = p256_prvkey_to_pubkey_bytes(&attestation_key).unwrap();
+        let res = verify_quote_attestation(&header, &body, &pubkey, &sig);
+        assert!(res.is_ok(), "Failed to verify quote attestation: {:?}", res);
     }
 }
