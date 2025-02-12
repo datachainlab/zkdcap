@@ -1,0 +1,32 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+      - run: cargo test --manifest-path=./zkvm/risc0/Cargo.toml -- --nocapture
+
+  reproducible-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: Swatinem/rust-cache@v2
+      - name: Install rzup
+        run: |
+          curl -L https://risczero.com/install | bash
+          echo "$HOME/.risc0/bin" >> $GITHUB_PATH
+      - name: Install RISC Zero toolchain
+        run: rzup install rust && rzup install cargo-risczero v1.2.2
+      - run: . "/home/runner/.bashrc" && ZKDCAP_RISC0_BUILD=1 cargo build -r --manifest-path=./zkvm/risc0/Cargo.toml
+      - run: git diff --exit-code
