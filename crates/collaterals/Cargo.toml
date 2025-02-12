@@ -11,6 +11,12 @@ der = { version = "0.7", features = ["alloc", "derive"] }
 chrono = { version = "0.4" }
 serde_json = { version = "1", features = ["preserve_order"] }
 
-openssl = { git = "https://github.com/datachainlab/rust-openssl", rev = "6fdf2f32721719d173bf909c97e982fe4e2e2819", features = ["vendored"] }
+openssl = { git = "https://github.com/datachainlab/rust-openssl", rev = "6fdf2f32721719d173bf909c97e982fe4e2e2819" }
 
 dcap-types = { path = "../types" }
+
+[features]
+default = []
+openssl-vendored = [
+  "openssl/vendored"
+]
