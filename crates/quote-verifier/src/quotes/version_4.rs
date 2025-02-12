@@ -38,7 +38,7 @@ pub fn verify_quote_dcapv4(
         );
     };
 
-    let ((qe_tcb_status, qe_advisory_ids), sgx_extensions, tcb_info, validity) =
+    let (qe_tcb_status, qe_advisory_ids, sgx_extensions, tcb_info, validity) =
         common_verify_and_fetch_tcb(
             &quote.header,
             &quote.quote_body,

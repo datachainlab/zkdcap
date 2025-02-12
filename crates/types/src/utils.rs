@@ -19,20 +19,20 @@ pub fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
     Pem::iter_from_buffer(raw_bytes).collect()
 }
 
-pub fn parse_crl_der<'a>(raw_bytes: &'a [u8]) -> crate::Result<CertificateRevocationList<'a>> {
+pub fn parse_crl_der(raw_bytes: &[u8]) -> crate::Result<CertificateRevocationList> {
     let (_, crl) = CertificateRevocationList::from_der(raw_bytes)?;
     Ok(crl)
 }
 
-pub fn parse_x509_der<'a>(raw_bytes: &'a [u8]) -> crate::Result<X509Certificate<'a>> {
+pub fn parse_x509_der(raw_bytes: &[u8]) -> crate::Result<X509Certificate> {
     let (_, cert) = X509Certificate::from_der(raw_bytes)?;
     Ok(cert)
 }
 
-pub fn parse_x509_der_multi<'a>(raw_bytes: &'a [u8]) -> crate::Result<Vec<X509Certificate<'a>>> {
+pub fn parse_x509_der_multi(raw_bytes: &[u8]) -> crate::Result<Vec<X509Certificate>> {
     let mut certs = Vec::new();
     let mut i = raw_bytes;
-    while i.len() > 0 {
+    while !i.is_empty() {
         let (j, cert) = X509Certificate::from_der(i)?;
         certs.push(cert);
         i = j;

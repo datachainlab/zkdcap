@@ -1,6 +1,13 @@
 use risc0_binfmt::compute_image_id;
 use risc0_build::{embed_method_metadata_with_options, DockerOptions, GuestOptions};
-use std::{collections::HashMap, env, fs::File, io::Write, path::PathBuf, str::FromStr};
+use std::{
+    collections::HashMap,
+    env,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 fn main() {
     println!("cargo:rerun-if-env-changed=ZKDCAP_RISC0_BUILD");
@@ -51,7 +58,7 @@ pub const DCAP_QUOTE_VERIFIER_ELF: &[u8] = include_bytes!("../artifacts/dcap-quo
         .unwrap();
 }
 
-fn get_correct_elf_path(elf_path: &PathBuf) -> String {
+fn get_correct_elf_path(elf_path: &Path) -> String {
     elf_path
         .parent()
         .unwrap()

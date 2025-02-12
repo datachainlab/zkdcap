@@ -1,8 +1,8 @@
-use anyhow::bail;
-
 use crate::Result;
+use anyhow::bail;
 use dcap_types::tcbinfo::TcbInfoV3;
 use dcap_types::{TcbInfoV3TcbStatus, TdxModuleTcbStatus, TdxModuleTcbValidationStatus};
+use std::str::FromStr;
 
 // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L62-L97
 pub fn get_tdx_module_identity_and_tcb(

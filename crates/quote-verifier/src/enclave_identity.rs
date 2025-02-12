@@ -2,6 +2,7 @@ use crate::crypto::verify_p256_signature_bytes;
 use crate::verifier::ValidityIntersection;
 use crate::Result;
 use anyhow::{bail, Context};
+use core::str::FromStr;
 use dcap_types::enclave_identity::EnclaveIdentityV2TcbLevelItem;
 use dcap_types::{enclave_identity::EnclaveIdentityV2, EnclaveIdentityV2TcbStatus};
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};

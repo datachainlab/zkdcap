@@ -28,7 +28,7 @@ pub fn gen_sgx_intel_root_ca(
     builder.set_version(0x2)?;
     builder.set_issuer_name(&name)?;
     builder.set_serial_number(
-        Asn1Integer::from_bn(BigNum::from_slice(&calc_skid(root_pkey).as_slice())?.as_ref())?
+        Asn1Integer::from_bn(BigNum::from_slice(calc_skid(root_pkey).as_slice())?.as_ref())?
             .as_ref(),
     )?;
     builder.set_subject_name(&name)?;
@@ -37,7 +37,7 @@ pub fn gen_sgx_intel_root_ca(
 
     builder.set_pubkey(root_pkey)?;
 
-    builder.append_extension(gen_skid(&root_pkey))?;
+    builder.append_extension(gen_skid(root_pkey))?;
 
     builder.append_extension(gen_crl_distribution_points(
         "https://certificates.trustedservices.intel.com/IntelSGXRootCA.der",
@@ -73,7 +73,7 @@ pub fn gen_root_ca(
     let root_key = gen_key();
     let root_cert = gen_sgx_intel_root_ca(
         &root_key,
-        root_cert_validity.unwrap_or_else(|| Validity::long_duration()),
+        root_cert_validity.unwrap_or_else(Validity::long_duration),
     )?;
     let crl = gen_crl(&root_cert, &root_key, &[], crl_validity)?;
     Ok(RootCa {
@@ -90,7 +90,7 @@ pub fn gen_crl(
     crl_validity: Option<Validity>,
 ) -> Result<X509Crl, anyhow::Error> {
     let mut crl = X509Crl::new(issuer_cert, None)?;
-    let validity = crl_validity.unwrap_or_else(|| Validity::long_duration());
+    let validity = crl_validity.unwrap_or_else(Validity::long_duration);
     crl.set_last_update(&validity.not_before())?;
     crl.set_next_update(&validity.not_after())?;
     crl.increment_crl_number()?;
@@ -120,10 +120,8 @@ pub fn gen_tcb_signing_ca(
     builder.set_version(0x2)?;
     builder.set_issuer_name(root_cert.subject_name())?;
     builder.set_serial_number(
-        Asn1Integer::from_bn(
-            BigNum::from_slice(&calc_skid(tcb_signing_pkey).as_slice())?.as_ref(),
-        )?
-        .as_ref(),
+        Asn1Integer::from_bn(BigNum::from_slice(calc_skid(tcb_signing_pkey).as_slice())?.as_ref())?
+            .as_ref(),
     )?;
     builder.set_subject_name(build_x509_name("Intel SGX TCB Signing")?.as_ref())?;
 
@@ -132,7 +130,7 @@ pub fn gen_tcb_signing_ca(
 
     builder.set_pubkey(tcb_signing_pkey)?;
 
-    builder.append_extension(gen_skid(&tcb_signing_pkey))?;
+    builder.append_extension(gen_skid(tcb_signing_pkey))?;
     builder.append_extension(gen_crl_distribution_points(
         "https://certificates.trustedservices.intel.com/IntelSGXRootCA.der",
     ))?;
@@ -171,7 +169,7 @@ pub fn gen_tcb_certchain(
         &root_ca.cert,
         &root_ca.key,
         &tcb_signing_key,
-        tcb_signing_ca_cert_validity.unwrap_or_else(|| Validity::long_duration()),
+        tcb_signing_ca_cert_validity.unwrap_or_else(Validity::long_duration),
     )?;
     Ok(TcbCertchain {
         cert: tcb_signing_cert,
@@ -220,10 +218,8 @@ pub fn gen_pck_cert_ca(
     builder.set_version(0x2)?;
     builder.set_issuer_name(root_cert.subject_name())?;
     builder.set_serial_number(
-        Asn1Integer::from_bn(
-            BigNum::from_slice(&calc_skid(pck_cert_ca_pkey).as_slice())?.as_ref(),
-        )?
-        .as_ref(),
+        Asn1Integer::from_bn(BigNum::from_slice(calc_skid(pck_cert_ca_pkey).as_slice())?.as_ref())?
+            .as_ref(),
     )?;
     builder.set_subject_name(build_x509_name(pck_ca.cn())?.as_ref())?;
     builder.set_pubkey(pck_cert_ca_pkey)?;
@@ -231,7 +227,7 @@ pub fn gen_pck_cert_ca(
     builder.set_not_before(&validity.not_before())?;
     builder.set_not_after(&validity.not_after())?;
 
-    builder.append_extension(gen_skid(&pck_cert_ca_pkey))?;
+    builder.append_extension(gen_skid(pck_cert_ca_pkey))?;
     builder.append_extension(gen_crl_distribution_points(
         "https://certificates.trustedservices.intel.com/IntelSGXRootCA.der",
     ))?;
@@ -267,7 +263,6 @@ pub fn gen_pck_cert(
         pck_ca_cert
             .subject_name()
             .entries()
-            .into_iter()
             .next()
             .ok_or_else(|| anyhow::anyhow!("No subject name"))?
             .data()
@@ -279,7 +274,7 @@ pub fn gen_pck_cert(
     builder.set_version(0x2)?;
     builder.set_issuer_name(pck_ca_cert.subject_name())?;
     builder.set_serial_number(
-        Asn1Integer::from_bn(BigNum::from_slice(&calc_skid(pck_cert_pkey).as_slice())?.as_ref())?
+        Asn1Integer::from_bn(BigNum::from_slice(calc_skid(pck_cert_pkey).as_slice())?.as_ref())?
             .as_ref(),
     )?;
     builder.set_subject_name(build_x509_name("Intel SGX PCK Certificate")?.as_ref())?;
@@ -288,7 +283,7 @@ pub fn gen_pck_cert(
     builder.set_not_before(&validity.not_before())?;
     builder.set_not_after(&validity.not_after())?;
 
-    builder.append_extension(gen_skid(&pck_cert_pkey))?;
+    builder.append_extension(gen_skid(pck_cert_pkey))?;
     builder.append_extension(gen_crl_distribution_points(
         format!(
             "https://api.trustedservices.intel.com/sgx/certification/v3/pckcrl?ca={}&encoding=der",
@@ -346,7 +341,7 @@ pub fn gen_pck_certchain(
         &root_ca.cert,
         &root_ca.key,
         &pck_cert_ca_key,
-        pck_cert_ca_validity.unwrap_or_else(|| Validity::long_duration()),
+        pck_cert_ca_validity.unwrap_or_else(Validity::long_duration),
     )?;
     let pck_cert_key = gen_key();
     let pck_cert = gen_pck_cert(
@@ -354,7 +349,7 @@ pub fn gen_pck_certchain(
         &pck_cert_ca_key,
         &pck_cert_key,
         sgx_extensions,
-        pck_cert_validity.unwrap_or_else(|| Validity::long_duration()),
+        pck_cert_validity.unwrap_or_else(Validity::long_duration),
     )?;
     let pck_cert_crl = gen_crl(
         &pck_cert_ca,

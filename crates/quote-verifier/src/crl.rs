@@ -1,6 +1,6 @@
 use crate::cert::get_crl_uri;
 use crate::{verifier::ValidityIntersection, Result};
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -99,12 +99,8 @@ impl<'a> IntelSgxCrls<'a> {
             }
         }
         Ok(ValidityIntersection {
-            not_before_max: max_last_update
-                .try_into()
-                .map_err(|e| anyhow!("Failed to convert max_last_update to u64: {}", e))?,
-            not_after_min: min_next_update
-                .try_into()
-                .map_err(|e| anyhow!("Failed to convert min_next_update to u64: {}", e))?,
+            not_before_max: max_last_update,
+            not_after_min: min_next_update,
         })
     }
 }

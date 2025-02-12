@@ -174,6 +174,7 @@ impl CertData {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum CertDataType {
     Unused,
     Type1(Vec<u8>),
