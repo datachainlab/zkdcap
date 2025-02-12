@@ -40,7 +40,7 @@ pub fn gen_quote_v3(
     Ok(QuoteV3 {
         header: quote_header.clone(),
         isv_enclave_report,
-        signature_len: sig_data.len(),
+        signature_len: sig_data.to_bytes().len() as u32,
         signature: sig_data,
     })
 }

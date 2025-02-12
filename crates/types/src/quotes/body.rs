@@ -335,3 +335,128 @@ impl Default for TD10ReportBody {
         }
     }
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn test_enclave_report_roundtrip(report in enclave_report_strategy()) {
+            let raw_bytes = report.to_bytes();
+            let parsed_report = EnclaveReport::from_bytes(&raw_bytes).unwrap();
+            prop_assert_eq!(parsed_report, report);
+        }
+
+        #[test]
+        fn test_td10_report_body_roundtrip(body in td10_report_body_strategy()) {
+            let raw_bytes = body.to_bytes();
+            let parsed_body = TD10ReportBody::from_bytes(&raw_bytes).unwrap();
+            prop_assert_eq!(parsed_body, body);
+        }
+    }
+
+    // proptest strategy for EnclaveReport
+    pub fn enclave_report_strategy() -> impl Strategy<Value = EnclaveReport> {
+        (
+            any::<[u8; 16]>(),
+            any::<[u8; 4]>(),
+            any::<[u8; 28]>(),
+            any::<[u8; 16]>(),
+            any::<[u8; 32]>(),
+            any::<[u8; 32]>(),
+            any::<[u8; 32]>(),
+            any::<[u8; 96]>(),
+            any::<u16>(),
+            any::<u16>(),
+            any::<[u8; 60]>(),
+            any::<[u8; 64]>(),
+        )
+            .prop_map(
+                |(
+                    cpu_svn,
+                    misc_select,
+                    reserved_1,
+                    attributes,
+                    mrenclave,
+                    reserved_2,
+                    mrsigner,
+                    reserved_3,
+                    isv_prod_id,
+                    isv_svn,
+                    reserved_4,
+                    report_data,
+                )| EnclaveReport {
+                    cpu_svn,
+                    misc_select,
+                    reserved_1,
+                    attributes,
+                    mrenclave,
+                    reserved_2,
+                    mrsigner,
+                    reserved_3,
+                    isv_prod_id,
+                    isv_svn,
+                    reserved_4,
+                    report_data,
+                },
+            )
+    }
+
+    // proptest strategy for TD10ReportBody
+    fn td10_report_body_strategy() -> impl Strategy<Value = TD10ReportBody> {
+        (
+            (
+                any::<[u8; 16]>(),
+                any::<[u8; 48]>(),
+                any::<[u8; 48]>(),
+                any::<u64>(),
+                any::<u64>(),
+                any::<u64>(),
+                any::<[u8; 48]>(),
+                any::<[u8; 48]>(),
+                any::<[u8; 48]>(),
+                any::<[u8; 48]>(),
+                any::<[u8; 48]>(),
+                any::<[u8; 48]>(),
+            ),
+            (any::<[u8; 48]>(), any::<[u8; 48]>(), any::<[u8; 64]>()),
+        )
+            .prop_map(
+                |(
+                    (
+                        tee_tcb_svn,
+                        mrseam,
+                        mrsignerseam,
+                        seam_attributes,
+                        td_attributes,
+                        xfam,
+                        mrtd,
+                        mrconfigid,
+                        mrowner,
+                        mrownerconfig,
+                        rtmr0,
+                        rtmr1,
+                    ),
+                    (rtmr2, rtmr3, report_data),
+                )| TD10ReportBody {
+                    tee_tcb_svn,
+                    mrseam,
+                    mrsignerseam,
+                    seam_attributes,
+                    td_attributes,
+                    xfam,
+                    mrtd,
+                    mrconfigid,
+                    mrowner,
+                    mrownerconfig,
+                    rtmr0,
+                    rtmr1,
+                    rtmr2,
+                    rtmr3,
+                    report_data,
+                },
+            )
+    }
+}

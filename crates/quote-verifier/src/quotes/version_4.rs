@@ -32,7 +32,10 @@ pub fn verify_quote_dcapv4(
     {
         qe_report_cert_data
     } else {
-        bail!("Unsupported CertDataType in QuoteSignatureDataV4");
+        bail!(
+            "unsupported cert data type: {}",
+            qe_cert_data_v4.cert_data_type
+        );
     };
 
     let ((qe_tcb_status, qe_advisory_ids), sgx_extensions, tcb_info, validity) =

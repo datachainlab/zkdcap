@@ -16,3 +16,6 @@ hex             = { version = "0.4" }
 
 [features]
 default = []
+
+[dev-dependencies]
+proptest = "1.6"

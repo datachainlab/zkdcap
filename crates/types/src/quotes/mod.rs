@@ -37,6 +37,7 @@ pub struct QuoteHeader {
 }
 
 impl QuoteHeader {
+    /// Parse a QuoteHeader from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Self {
         let version = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let att_key_type = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
@@ -61,6 +62,7 @@ impl QuoteHeader {
         }
     }
 
+    /// Serialize a QuoteHeader to a byte array.
     pub fn to_bytes(&self) -> [u8; 48] {
         let mut raw_bytes = [0; 48];
         raw_bytes[0..2].copy_from_slice(&self.version.to_le_bytes());
@@ -88,10 +90,19 @@ pub struct QeAuthData {
 }
 
 impl QeAuthData {
+    /// Parse a QeAuthData from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> QeAuthData {
         let size = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let data = raw_bytes[2..2 + size as usize].to_vec();
         QeAuthData { size, data }
+    }
+
+    /// Serialize a QeAuthData to a byte vector.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut raw_bytes = Vec::new();
+        raw_bytes.extend_from_slice(&self.size.to_le_bytes());
+        raw_bytes.extend_from_slice(&self.data);
+        raw_bytes
     }
 }
 
@@ -123,6 +134,7 @@ pub struct CertData {
 }
 
 impl CertData {
+    /// Parse a CertData from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Self {
         let cert_data_type = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let cert_data_size =
@@ -136,6 +148,17 @@ impl CertData {
         }
     }
 
+    /// Serialize a CertData to a byte vector.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut raw_bytes = Vec::new();
+        raw_bytes.extend_from_slice(&self.cert_data_type.to_le_bytes());
+        raw_bytes.extend_from_slice(&self.cert_data_size.to_le_bytes());
+        raw_bytes.extend_from_slice(&self.cert_data);
+
+        raw_bytes
+    }
+
+    /// Get the CertDataType from the CertData.
     pub fn get_cert_data(&self) -> Result<CertDataType> {
         let t = match self.cert_data_type {
             1 => CertDataType::Type1(self.cert_data.clone()),
@@ -162,7 +185,7 @@ pub enum CertDataType {
     Type7(Vec<u8>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QeReportCertData {
     pub qe_report: EnclaveReport,
     pub qe_report_signature: [u8; 64],
@@ -171,6 +194,7 @@ pub struct QeReportCertData {
 }
 
 impl QeReportCertData {
+    /// Parse a QeReportCertData from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
         // 384 bytes for qe_report
         let qe_report = EnclaveReport::from_bytes(&raw_bytes[0..384])?;
@@ -192,6 +216,17 @@ impl QeReportCertData {
             qe_cert_data,
         })
     }
+
+    /// Serialize a QeReportCertData to a byte vector.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut raw_bytes = Vec::new();
+        raw_bytes.extend_from_slice(&self.qe_report.to_bytes());
+        raw_bytes.extend_from_slice(&self.qe_report_signature);
+        raw_bytes.extend_from_slice(&self.qe_auth_data.to_bytes());
+        raw_bytes.extend_from_slice(&self.qe_cert_data.to_bytes());
+
+        raw_bytes
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -200,18 +235,119 @@ pub struct Certificates {
 }
 
 impl Certificates {
+    /// Create a new Certificates instance from a DER encoded byte slice.
     pub fn from_der(certs_der: &[u8]) -> Self {
         Self {
             certs_der: certs_der.to_vec(),
         }
     }
 
+    /// Create a new Certificates instance from a PEM encoded byte slice.
     pub fn from_pem(pem_bytes: &[u8]) -> Result<Self> {
         let certs_der = pem_to_der(pem_bytes)?;
         Ok(Self::from_der(&certs_der))
     }
 
+    /// Get the certificates as a vector of X509Certificate.
     pub fn get_certs(&self) -> Result<Vec<X509Certificate>> {
         parse_x509_der_multi(&self.certs_der)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::{body::tests::enclave_report_strategy, *};
+    use proptest::{collection::vec, prelude::*};
+
+    proptest! {
+        #[test]
+        fn test_quote_header_roundtrip(quote_header in quote_header_strategy()) {
+            let raw_bytes = quote_header.to_bytes();
+            let parsed_quote_header = QuoteHeader::from_bytes(&raw_bytes);
+            prop_assert_eq!(quote_header, parsed_quote_header, "raw_bytes: {:?}", raw_bytes);
+        }
+
+        #[test]
+        fn test_qe_report_cert_data_roundtrip(qe_report_cert_data in qe_report_cert_data_strategy()) {
+            let raw_bytes = qe_report_cert_data.to_bytes();
+            let parsed_qe_report_cert_data = QeReportCertData::from_bytes(&raw_bytes).unwrap();
+            prop_assert_eq!(qe_report_cert_data, parsed_qe_report_cert_data, "raw_bytes: {:?}", raw_bytes);
+        }
+
+        #[test]
+        fn test_qe_auth_data_roundtrip(qe_auth_data in qe_auth_data_strategy(65535)) {
+            let raw_bytes = qe_auth_data.to_bytes();
+            let parsed_qe_auth_data = QeAuthData::from_bytes(&raw_bytes);
+            prop_assert_eq!(qe_auth_data, parsed_qe_auth_data, "raw_bytes: {:?}", raw_bytes);
+        }
+
+        #[test]
+        fn test_cert_data_roundtrip(cert_data in cert_data_strategy(65535)) {
+            let raw_bytes = cert_data.to_bytes();
+            let parsed_cert_data = CertData::from_bytes(&raw_bytes);
+            prop_assert_eq!(cert_data, parsed_cert_data);
+        }
+    }
+
+    pub(crate) fn quote_header_strategy() -> impl Strategy<Value = QuoteHeader> {
+        (
+            any::<u16>(),
+            any::<u16>(),
+            any::<u32>(),
+            any::<[u8; 2]>(),
+            any::<[u8; 2]>(),
+            any::<[u8; 16]>(),
+            any::<[u8; 20]>(),
+        )
+            .prop_map(
+                |(version, att_key_type, tee_type, qe_svn, pce_svn, qe_vendor_id, user_data)| {
+                    QuoteHeader {
+                        version,
+                        att_key_type,
+                        tee_type,
+                        qe_svn,
+                        pce_svn,
+                        qe_vendor_id,
+                        user_data,
+                    }
+                },
+            )
+    }
+
+    pub(crate) fn qe_auth_data_strategy(limit_size: u16) -> impl Strategy<Value = QeAuthData> {
+        vec(any::<u8>(), 0..=limit_size as usize).prop_map(|data| {
+            let size = data.len() as u16;
+            QeAuthData { size, data }
+        })
+    }
+
+    pub(crate) fn cert_data_strategy(limit_size: u32) -> impl Strategy<Value = CertData> {
+        (0..=u16::MAX, vec(any::<u8>(), 0..=limit_size as usize)).prop_map(
+            |(cert_data_type, cert_data)| {
+                let cert_data_size = cert_data.len() as u32;
+                CertData {
+                    cert_data_type,
+                    cert_data_size,
+                    cert_data,
+                }
+            },
+        )
+    }
+
+    pub(crate) fn qe_report_cert_data_strategy() -> impl Strategy<Value = QeReportCertData> {
+        (
+            enclave_report_strategy(),
+            any::<[u8; 64]>(),
+            qe_auth_data_strategy(65535),
+            cert_data_strategy(65535),
+        )
+            .prop_map(
+                |(qe_report, qe_report_signature, qe_auth_data, qe_cert_data)| QeReportCertData {
+                    qe_report,
+                    qe_report_signature,
+                    qe_auth_data,
+                    qe_cert_data,
+                },
+            )
     }
 }
