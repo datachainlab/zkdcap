@@ -15,7 +15,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
-      - run: RISC0_DEV_MODE=0 cargo test --manifest-path=./zkvm/risc0/Cargo.toml -- --nocapture
+      - run: RISC0_DEV_MODE=0 cargo test --manifest-path=./zkvm/risc0/Cargo.toml -r -- --nocapture
       - run: cargo fmt --all --check && cargo clippy --locked --tests -- -D warnings
       - run: cargo fmt --all --check && cargo clippy --locked --tests -- -D warnings
         working-directory: zkvm/risc0
