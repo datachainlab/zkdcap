@@ -10,7 +10,7 @@ use sha3::Keccak256;
 // The public_key is the public key (in uncompressed form [4][x][y]) of the entity that signed the data. (65 bytes)
 // Returns true if the signature is valid, false otherwise.
 pub fn verify_p256_signature_bytes(data: &[u8], signature: &[u8], public_key: &[u8]) -> Result<()> {
-    let signature = Signature::from_bytes(signature.try_into()?)?;
+    let signature = Signature::from_bytes(signature.into())?;
     let verifying_key = VerifyingKey::from_sec1_bytes(public_key)?;
     Ok(verifying_key.verify(data, &signature)?)
 }

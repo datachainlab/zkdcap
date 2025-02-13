@@ -1,7 +1,7 @@
 use anyhow::bail;
 use core::fmt::Display;
+use core::str::FromStr;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 pub mod cert;
 pub mod enclave_identity;
@@ -50,8 +50,10 @@ pub enum EnclaveIdentityV2TcbStatus {
     Revoked,   // equivalent to STATUS_SGX_ENCLAVE_REPORT_ISVSVN_REVOKED
 }
 
-impl EnclaveIdentityV2TcbStatus {
-    pub fn from_str(s: &str) -> Result<Self> {
+impl FromStr for EnclaveIdentityV2TcbStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
             "UpToDate" => Self::UpToDate,
             "OutOfDate" => Self::OutOfDate,
@@ -112,8 +114,10 @@ pub enum TcbInfoV3TcbStatus {
     Revoked,
 }
 
-impl TcbInfoV3TcbStatus {
-    pub fn from_str(s: &str) -> Result<Self> {
+impl FromStr for TcbInfoV3TcbStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
             "UpToDate" => Self::UpToDate,
             "SWHardeningNeeded" => Self::SWHardeningNeeded,
@@ -151,8 +155,10 @@ pub enum TdxModuleTcbStatus {
     Revoked,
 }
 
-impl TdxModuleTcbStatus {
-    pub fn from_str(s: &str) -> Result<Self> {
+impl FromStr for TdxModuleTcbStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
             "UpToDate" => Self::UpToDate,
             "OutOfDate" => Self::OutOfDate,

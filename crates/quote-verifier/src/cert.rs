@@ -1,14 +1,14 @@
-use anyhow::bail;
-use x509_parser::oid_registry::OID_X509_EXT_CRL_DISTRIBUTION_POINTS;
-use x509_parser::prelude::*;
-
 use crate::crypto::verify_p256_signature_der;
+use anyhow::bail;
+use core::str::FromStr;
 use dcap_types::cert::{SgxExtensionTcbLevel, SgxExtensions};
 use dcap_types::tcbinfo::{TcbComponent, TcbInfoV3};
 use dcap_types::TcbInfoV3TcbStatus;
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
+use x509_parser::oid_registry::OID_X509_EXT_CRL_DISTRIBUTION_POINTS;
+use x509_parser::prelude::*;
 
-pub fn parse_certchain<'a>(pem_certs: &'a [Pem]) -> crate::Result<Vec<X509Certificate<'a>>> {
+pub fn parse_certchain(pem_certs: &[Pem]) -> crate::Result<Vec<X509Certificate>> {
     Ok(pem_certs
         .iter()
         .map(|pem| pem.parse_x509())
@@ -45,9 +45,9 @@ pub fn verify_crl_signature(
 }
 
 // verify_certchain_signature just verify that the certchain signature matches, any other checks will be done by the caller
-pub fn verify_certchain_signature<'a, 'b>(
-    certs: &[&X509Certificate<'a>],
-    root_cert: &X509Certificate<'b>,
+pub fn verify_certchain_signature(
+    certs: &[&X509Certificate],
+    root_cert: &X509Certificate,
 ) -> crate::Result<()> {
     // verify that the cert chain is valid
     let mut iter = certs.iter();
@@ -143,18 +143,17 @@ pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
     let extension_pcesvn = tcb.pcesvn;
 
     for tcb_level in tcbinfov3.tcb_info.tcb_levels.iter() {
-        if sgx_tcb_status.is_none() {
-            if match_sgxtcbcomp(tcb, &tcb_level.tcb.sgxtcbcomponents)
-                && extension_pcesvn >= tcb_level.tcb.pcesvn
-            {
-                sgx_tcb_status = Some(TcbInfoV3TcbStatus::from_str(tcb_level.tcb_status.as_str())?);
-                if !is_tdx {
-                    return Ok((
-                        sgx_tcb_status.unwrap(),
-                        None,
-                        tcb_level.advisory_ids.clone().unwrap_or_default(),
-                    ));
-                }
+        if sgx_tcb_status.is_none()
+            && match_sgxtcbcomp(tcb, &tcb_level.tcb.sgxtcbcomponents)
+            && extension_pcesvn >= tcb_level.tcb.pcesvn
+        {
+            sgx_tcb_status = Some(TcbInfoV3TcbStatus::from_str(tcb_level.tcb_status.as_str())?);
+            if !is_tdx {
+                return Ok((
+                    sgx_tcb_status.unwrap(),
+                    None,
+                    tcb_level.advisory_ids.clone().unwrap_or_default(),
+                ));
             }
         }
         if is_tdx && sgx_tcb_status.is_some() {
@@ -204,7 +203,7 @@ fn match_tdxtcbcomp(tee_tcb_svn: &[u8; 16], tdxtcbcomponents: &[TcbComponent; 16
 pub fn merge_advisory_ids(advisory_ids: Vec<String>, advisory_ids2: Vec<String>) -> Vec<String> {
     let mut ids = advisory_ids
         .into_iter()
-        .chain(advisory_ids2.into_iter())
+        .chain(advisory_ids2)
         .collect::<Vec<_>>();
     ids.sort();
     ids.dedup();

@@ -86,7 +86,7 @@ impl IntelCollateral {
         let sgx_intel_root_ca_crl_der_len = u32::from_le_bytes(slice[16..20].try_into()?) as usize;
         let sgx_pck_crl_der_len = u32::from_le_bytes(slice[20..24].try_into()?) as usize;
 
-        let mut offset = 4 * 6 as usize;
+        let mut offset = 4 * 6usize;
 
         if slice.len()
             < offset
@@ -146,22 +146,22 @@ impl IntelCollateral {
     }
 
     /// Returns the SGX Intel Root CA certificate
-    pub fn get_sgx_intel_root_ca<'a>(&'a self) -> Result<X509Certificate<'a>> {
+    pub fn get_sgx_intel_root_ca(&self) -> Result<X509Certificate> {
         parse_x509_der(&self.sgx_intel_root_ca_der)
     }
 
     /// Returns the SGX TCB Signing certificate
-    pub fn get_sgx_tcb_signing<'a>(&'a self) -> Result<X509Certificate<'a>> {
+    pub fn get_sgx_tcb_signing(&self) -> Result<X509Certificate> {
         parse_x509_der(&self.sgx_tcb_signing_der)
     }
 
     /// Returns the SGX Intel Root CA CRL
-    pub fn get_sgx_intel_root_ca_crl<'a>(&'a self) -> Result<CertificateRevocationList<'a>> {
+    pub fn get_sgx_intel_root_ca_crl(&self) -> Result<CertificateRevocationList> {
         parse_crl_der(&self.sgx_intel_root_ca_crl_der)
     }
 
     /// Returns the SGX PCK Platform/Processor CA CRL
-    pub fn get_sgx_pck_crl<'a>(&'a self) -> Result<CertificateRevocationList<'a>> {
+    pub fn get_sgx_pck_crl(&self) -> Result<CertificateRevocationList> {
         parse_crl_der(&self.sgx_pck_crl_der)
     }
 }

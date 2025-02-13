@@ -15,7 +15,7 @@ pub fn extract_sgx_extensions<'a>(pck_cert: &'a X509Certificate<'a>) -> Result<S
 }
 
 /// Parse the SGX Extensions from the DER-encoded bytes and returns an `SgxExtensions` structure.
-pub fn parse_sgx_extensions<'a>(sgx_extensions_bytes: &'a [u8]) -> Result<SgxExtensions> {
+pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions> {
     // p.11-14 https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf
 
     // <SGX Extensions OID>:

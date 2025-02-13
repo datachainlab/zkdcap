@@ -22,7 +22,7 @@ pub fn verify_quote_dcapv3(
     check_quote_header(&quote.header, 3).context("invalid quote header")?;
 
     let quote_body = QuoteBody::SGXQuoteBody(quote.isv_enclave_report);
-    let ((qe_tcb_status, qe_advisory_ids), sgx_extensions, tcb_info, validity) =
+    let (qe_tcb_status, qe_advisory_ids, sgx_extensions, tcb_info, validity) =
         common_verify_and_fetch_tcb(
             &quote.header,
             &quote_body,

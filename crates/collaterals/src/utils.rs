@@ -27,7 +27,7 @@ pub fn sign(pkey: &PKeyRef<Private>, msg: &[u8]) -> Result<Vec<u8>, anyhow::Erro
     signer.update(msg)?;
     EcdsaSignature::from_der(signer.sign_to_vec()?.as_slice())
         .map_err(|e| anyhow::anyhow!("Failed to decode ASN.1 signature: {}", e))
-        .and_then(|asn_sig| {
+        .map(|asn_sig| {
             let mut sig = vec![];
             let r = asn_sig.r.as_bytes();
             let s = asn_sig.s.as_bytes();
@@ -35,7 +35,7 @@ pub fn sign(pkey: &PKeyRef<Private>, msg: &[u8]) -> Result<Vec<u8>, anyhow::Erro
             sig.extend_from_slice(r);
             sig.extend_from_slice(&vec![0; 32 - s.len()]);
             sig.extend_from_slice(s);
-            Ok(sig)
+            sig
         })
 }
 
@@ -52,7 +52,7 @@ pub fn p256_prvkey_to_pubkey_bytes(pkey: &PKeyRef<Private>) -> Result<[u8; 64], 
     Ok(pubkey)
 }
 
-pub fn parse_cert_der<'a>(cert_der: &'a [u8]) -> Result<X509Certificate<'a>, anyhow::Error> {
+pub fn parse_cert_der(cert_der: &[u8]) -> Result<X509Certificate, anyhow::Error> {
     let (_, c) = X509Certificate::from_der(cert_der)?;
     Ok(c)
 }

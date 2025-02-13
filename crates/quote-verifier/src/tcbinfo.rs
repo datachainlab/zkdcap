@@ -34,10 +34,10 @@ pub fn validate_tcb_signing_certificate(
         bail!("TCB Signing Cert and Root Cert do not match");
     }
     // check that the tcb signing cert is signed by the root cert
-    verify_certificate(&tcb_signing_cert, &intel_sgx_root_cert)
+    verify_certificate(tcb_signing_cert, intel_sgx_root_cert)
         .context("Invalid TCB Signing Cert")?;
     // check that the tcb signing cert is not revoked by the `self.sgx_root_ca_crl` CRL
-    if intel_crls.is_cert_revoked(&tcb_signing_cert)? {
+    if intel_crls.is_cert_revoked(tcb_signing_cert)? {
         bail!("TCB Signing Cert revoked");
     }
 

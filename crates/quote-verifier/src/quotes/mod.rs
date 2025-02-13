@@ -50,6 +50,7 @@ use x509_parser::certificate::X509Certificate;
 /// * The SGX extensions from the PCK leaf certificate
 /// * The TCB info
 /// * The validity intersection of all collaterals
+#[allow(clippy::too_many_arguments)]
 fn common_verify_and_fetch_tcb(
     quote_header: &QuoteHeader,
     quote_body: &QuoteBody,
@@ -62,7 +63,8 @@ fn common_verify_and_fetch_tcb(
     collaterals: &IntelCollateral,
     current_time: u64,
 ) -> Result<(
-    (EnclaveIdentityV2TcbStatus, Vec<String>),
+    EnclaveIdentityV2TcbStatus,
+    Vec<String>,
     SgxExtensions,
     TcbInfo,
     ValidityIntersection,
@@ -170,7 +172,8 @@ fn common_verify_and_fetch_tcb(
     }
 
     Ok((
-        (qe_tcb_status, advisory_ids),
+        qe_tcb_status,
+        advisory_ids,
         pck_cert_sgx_extensions,
         tcb_info,
         validity,
@@ -225,10 +228,7 @@ fn verify_qe_report(
 
     // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L92
     // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L286
-    Ok(get_qe_tcbstatus(
-        qe_report.isv_svn,
-        &qeidentityv2.enclave_identity.tcb_levels,
-    )?)
+    get_qe_tcbstatus(qe_report.isv_svn, &qeidentityv2.enclave_identity.tcb_levels)
 }
 
 /// Verify the attestation signature for the quote (header + body) using the attestation public key
