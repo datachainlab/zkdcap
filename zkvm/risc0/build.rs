@@ -2,7 +2,6 @@ use risc0_binfmt::compute_image_id;
 use risc0_build::{embed_method_metadata_with_options, DockerOptions, GuestOptions};
 use std::{
     collections::HashMap,
-    env,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -10,17 +9,6 @@ use std::{
 };
 
 fn main() {
-    println!("cargo:rerun-if-env-changed=ZKDCAP_RISC0_BUILD");
-    match env::var("ZKDCAP_RISC0_BUILD") {
-        Ok(v) if v == "1" => {
-            println!("debug: ZKDCAP_RISC0_BUILD is set");
-        }
-        _ => {
-            println!("debug: ZKDCAP_RISC0_BUILD is not set");
-            return;
-        }
-    }
-
     // Builds can be made deterministic, and thereby reproducible, by using Docker to build the
     // guest.
     let use_docker = Some(DockerOptions {
