@@ -41,7 +41,9 @@ fn main() {
     };
     let elf_path = get_correct_elf_path(&PathBuf::from_str(&guests[0].path).unwrap());
     let elf_value = std::fs::read(&elf_path).unwrap();
-    let image_id = compute_image_id(&elf_value).unwrap().as_words().to_vec();
+    let image_id = compute_image_id(&elf_value).unwrap();
+    let image_id_words = image_id.as_words().to_vec();
+    let image_id_str = image_id.to_string();
     let mut elf_file = File::create("./artifacts/dcap-quote-verifier").unwrap();
     elf_file.write_all(&elf_value).unwrap();
     let mut methods_file = File::create("./src/methods.rs").unwrap();
@@ -49,7 +51,8 @@ fn main() {
         .write_all(
             format!(
                 r##"
-pub const DCAP_QUOTE_VERIFIER_ID: [u32; 8] = {image_id:?};
+pub const DCAP_QUOTE_VERIFIER_ID: [u32; 8] = {image_id_words:?};
+pub const DCAP_QUOTE_VERIFIER_ID_STR: &str = "{image_id_str}";
 pub const DCAP_QUOTE_VERIFIER_ELF: &[u8] = include_bytes!("../artifacts/dcap-quote-verifier");
 "##
             )
