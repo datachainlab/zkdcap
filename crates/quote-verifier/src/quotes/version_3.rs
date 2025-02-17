@@ -9,6 +9,7 @@ use crate::{
     VERIFIER_VERSION,
 };
 use anyhow::{bail, Context};
+use core::cmp::min;
 use dcap_types::{
     quotes::{body::QuoteBody, version_3::QuoteV3},
     tcbinfo::TcbInfo,
@@ -22,19 +23,18 @@ pub fn verify_quote_dcapv3(
     check_quote_header(&quote.header, 3).context("invalid quote header")?;
 
     let quote_body = QuoteBody::SGXQuoteBody(quote.isv_enclave_report);
-    let (qe_tcb_status, qe_advisory_ids, sgx_extensions, tcb_info, validity) =
-        common_verify_and_fetch_tcb(
-            &quote.header,
-            &quote_body,
-            &quote.signature.isv_enclave_report_signature,
-            &quote.signature.ecdsa_attestation_key,
-            &quote.signature.qe_report,
-            &quote.signature.qe_report_signature,
-            &quote.signature.qe_auth_data.data,
-            &quote.signature.qe_cert_data,
-            collaterals,
-            current_time,
-        )?;
+    let (qe_status, sgx_extensions, tcb_info, validity) = common_verify_and_fetch_tcb(
+        &quote.header,
+        &quote_body,
+        &quote.signature.isv_enclave_report_signature,
+        &quote.signature.ecdsa_attestation_key,
+        &quote.signature.qe_report,
+        &quote.signature.qe_report_signature,
+        &quote.signature.qe_auth_data.data,
+        &quote.signature.qe_cert_data,
+        collaterals,
+        current_time,
+    )?;
     if !validity.validate_time(current_time) {
         bail!(
             "certificates are expired: validity={} current_time={}",
@@ -50,12 +50,16 @@ pub fn verify_quote_dcapv3(
         version: VERIFIER_VERSION,
         quote_version: quote.header.version,
         tee_type: quote.header.tee_type,
-        tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb_status),
+        tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_status.tcb_status),
+        min_tcb_evaluation_data_number: min(
+            qe_status.tcb_evaluation_data_number,
+            tcb_info_v3.tcb_info.tcb_evaluation_data_number,
+        ),
         fmspc: sgx_extensions.fmspc,
         sgx_intel_root_ca_hash: keccak256sum(collaterals.sgx_intel_root_ca_der.as_ref()),
         validity,
         quote_body,
-        advisory_ids: merge_advisory_ids(tcb_advisory_ids, qe_advisory_ids),
+        advisory_ids: merge_advisory_ids(tcb_advisory_ids, qe_status.advisory_ids),
     })
 }
 
@@ -143,11 +147,13 @@ mod tests {
         // fmspc and tcb_levels must be consistent with the sgx extensions in the pck cert
         let tcb_info = TcbInfoV3Builder::new(true)
             .fmspc([0, 96, 106, 0, 0, 0])
+            .tcb_evaluation_data_number(2)
             .tcb_levels(target_tcb_levels)
             .build_and_sign(&tcb_certchain.key)
             .unwrap();
 
         let qe_identity = EnclaveIdentityV2Builder::new(EnclaveIdentityId::QE)
+            .tcb_evaluation_data_number(1)
             .tcb_levels_json(json!([
             {
               "tcb": {
@@ -172,5 +178,7 @@ mod tests {
         let current_time = 1730000000;
         let res = verify_quote_dcapv3(&quote, &collateral, current_time);
         assert!(res.is_ok(), "{:?}", res);
+        let output = res.unwrap();
+        assert_eq!(output.min_tcb_evaluation_data_number, 1);
     }
 }

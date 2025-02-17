@@ -10,6 +10,7 @@ use crate::{
     VERIFIER_VERSION,
 };
 use anyhow::{bail, Context};
+use core::cmp::min;
 use dcap_types::{
     quotes::{body::QuoteBody, version_4::QuoteV4, CertDataType},
     tcbinfo::TcbInfo,
@@ -38,19 +39,18 @@ pub fn verify_quote_dcapv4(
         );
     };
 
-    let (qe_tcb_status, qe_advisory_ids, sgx_extensions, tcb_info, validity) =
-        common_verify_and_fetch_tcb(
-            &quote.header,
-            &quote.quote_body,
-            &quote.signature.quote_signature,
-            &quote.signature.ecdsa_attestation_key,
-            &qe_report_cert_data.qe_report,
-            &qe_report_cert_data.qe_report_signature,
-            &qe_report_cert_data.qe_auth_data.data,
-            &qe_report_cert_data.qe_cert_data,
-            collaterals,
-            current_time,
-        )?;
+    let (qe_tcb, sgx_extensions, tcb_info, validity) = common_verify_and_fetch_tcb(
+        &quote.header,
+        &quote.quote_body,
+        &quote.signature.quote_signature,
+        &quote.signature.ecdsa_attestation_key,
+        &qe_report_cert_data.qe_report,
+        &qe_report_cert_data.qe_report_signature,
+        &qe_report_cert_data.qe_auth_data.data,
+        &qe_report_cert_data.qe_cert_data,
+        collaterals,
+        current_time,
+    )?;
 
     if !validity.validate_time(current_time) {
         bail!(
@@ -73,7 +73,7 @@ pub fn verify_quote_dcapv4(
     let (sgx_tcb_status, tdx_tcb_status, tcb_advisory_ids) =
         get_sgx_tdx_fmspc_tcbstatus_v3(tee_type, Some(tee_tcb_svn), &sgx_extensions, &tcb_info_v3)?;
 
-    let mut advisory_ids = merge_advisory_ids(tcb_advisory_ids, qe_advisory_ids);
+    let mut advisory_ids = merge_advisory_ids(tcb_advisory_ids, qe_tcb.advisory_ids);
     let mut tcb_status: TcbInfoV3TcbStatus;
     if quote.header.tee_type == SGX_TEE_TYPE {
         tcb_status = sgx_tcb_status;
@@ -116,7 +116,11 @@ pub fn verify_quote_dcapv4(
         version: VERIFIER_VERSION,
         quote_version: quote.header.version,
         tee_type: quote.header.tee_type,
-        tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb_status),
+        tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
+        min_tcb_evaluation_data_number: min(
+            qe_tcb.tcb_evaluation_data_number,
+            tcb_info_v3.tcb_info.tcb_evaluation_data_number,
+        ),
         fmspc: sgx_extensions.fmspc,
         sgx_intel_root_ca_hash: sha256sum(collaterals.sgx_intel_root_ca_der.as_ref()),
         validity,

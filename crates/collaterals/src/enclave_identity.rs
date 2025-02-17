@@ -85,7 +85,7 @@ impl EnclaveIdentityV2Builder {
         }
     }
 
-    pub fn tcb_evaluation_data_number(self, tcb_evaluation_data_number: u64) -> Self {
+    pub fn tcb_evaluation_data_number(self, tcb_evaluation_data_number: u32) -> Self {
         Self {
             obj: EnclaveIdentityV2Inner {
                 tcb_evaluation_data_number,

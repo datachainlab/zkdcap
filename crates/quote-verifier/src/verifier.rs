@@ -116,6 +116,9 @@ pub struct VerifiedOutput {
     /// TCB status
     /// length: 1 byte
     pub tcb_status: Status,
+    /// Minimum TCB evaluation data number
+    /// length: 4 bytes
+    pub min_tcb_evaluation_data_number: u32,
     /// FMSPC
     /// length: 6 bytes
     pub fmspc: [u8; 6],
@@ -145,6 +148,7 @@ impl VerifiedOutput {
         output_vec.extend_from_slice(&self.quote_version.to_be_bytes());
         output_vec.extend_from_slice(&self.tee_type.to_be_bytes());
         output_vec.push(self.tcb_status.as_u8());
+        output_vec.extend_from_slice(&self.min_tcb_evaluation_data_number.to_be_bytes());
         output_vec.extend_from_slice(&self.fmspc);
         output_vec.extend_from_slice(&self.sgx_intel_root_ca_hash);
         output_vec.extend_from_slice(&self.validity.not_before_max.to_be_bytes());
@@ -176,18 +180,20 @@ impl VerifiedOutput {
         let mut tee_type = [0; 4];
         tee_type.copy_from_slice(&slice[4..8]);
         let tcb_status = Status::from_u8(slice[8])?;
+        let mut min_tcb_evaluation_data_number = [0; 4];
+        min_tcb_evaluation_data_number.copy_from_slice(&slice[9..13]);
         let mut fmspc = [0; 6];
-        fmspc.copy_from_slice(&slice[9..15]);
+        fmspc.copy_from_slice(&slice[13..19]);
 
         let mut sgx_intel_root_ca_hash = [0; 32];
-        sgx_intel_root_ca_hash.copy_from_slice(&slice[15..47]);
+        sgx_intel_root_ca_hash.copy_from_slice(&slice[19..51]);
 
         let mut not_before_max = [0; 8];
-        not_before_max.copy_from_slice(&slice[47..55]);
+        not_before_max.copy_from_slice(&slice[51..59]);
         let mut not_after_min = [0; 8];
-        not_after_min.copy_from_slice(&slice[55..63]);
+        not_after_min.copy_from_slice(&slice[59..67]);
 
-        const QUOTE_BODY_OFFSET: usize = 63;
+        const QUOTE_BODY_OFFSET: usize = 67;
         let (quote_body, advisory_ids_offset) = match u32::from_be_bytes(tee_type) {
             SGX_TEE_TYPE => {
                 let raw_quote_body =
@@ -214,6 +220,7 @@ impl VerifiedOutput {
             quote_version: u16::from_be_bytes(quote_version),
             tee_type: u32::from_be_bytes(tee_type),
             tcb_status,
+            min_tcb_evaluation_data_number: u32::from_be_bytes(min_tcb_evaluation_data_number),
             fmspc,
             sgx_intel_root_ca_hash,
             validity: ValidityIntersection {
