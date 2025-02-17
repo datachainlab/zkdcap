@@ -6,7 +6,7 @@ pub use methods::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dcap_quote_verifier::verifier::VerifiedOutput;
+    use dcap_quote_verifier::verifier::QuoteVerificationOutput;
     use risc0_zkvm::{ExecutorEnv, LocalProver, Prover, ProverOpts, VerifierContext};
 
     #[test]
@@ -33,7 +33,7 @@ mod tests {
         let res = res.unwrap();
         println!("proving stats: {:?}", res.stats);
 
-        let res = VerifiedOutput::from_bytes(&res.receipt.journal.bytes);
+        let res = QuoteVerificationOutput::from_bytes(&res.receipt.journal.bytes);
         assert!(res.is_ok(), "Verifier failed: {:?}", res.err().unwrap());
         println!("verifier output: {:?}", res.unwrap());
     }

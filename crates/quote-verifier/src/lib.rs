@@ -24,9 +24,9 @@ mod quote_verifier_tests {
     use crate::cert::verify_crl_signature;
     use crate::collaterals::IntelCollateral;
     use crate::crypto::keccak256sum;
-    use crate::quotes::{version_3::verify_quote_dcapv3, version_4::verify_quote_dcapv4};
+    use crate::quotes::{version_3::verify_quote_v3, version_4::verify_quote_v4};
     use crate::tcbinfo::validate_tcbinfov3;
-    use crate::verifier::VerifiedOutput;
+    use crate::verifier::QuoteVerificationOutput;
     use dcap_types::quotes::{version_3::QuoteV3, version_4::QuoteV4};
     use dcap_types::tcbinfo::TcbInfoV3;
     use dcap_types::utils::{parse_crl_der, parse_pem, parse_x509_der, pem_to_der};
@@ -96,7 +96,7 @@ mod quote_verifier_tests {
         let res = QuoteV3::from_bytes(&dcap_quote_bytes);
         assert!(res.is_ok(), "failed to parse quotev3: {:?}", res.err());
         let dcap_quote = res.unwrap();
-        let res = verify_quote_dcapv3(&dcap_quote, &collaterals, 1737458686);
+        let res = verify_quote_v3(&dcap_quote, &collaterals, 1737458686);
         assert!(res.is_ok(), "verification failed: {:?}", res.err());
         let verified_output = res.unwrap();
         assert_eq!(verified_output.quote_version, 3);
@@ -124,7 +124,7 @@ mod quote_verifier_tests {
             "invalid `not_after_min`"
         );
         let bz = verified_output.to_bytes();
-        let res = VerifiedOutput::from_bytes(&bz);
+        let res = QuoteVerificationOutput::from_bytes(&bz);
         assert!(
             res.is_ok(),
             "failed to parse verified output: {:?}",
@@ -154,12 +154,12 @@ mod quote_verifier_tests {
         assert!(res.is_ok(), "failed to parse quotev4: {:?}", res.err());
         let dcap_quote = res.unwrap();
 
-        let res = verify_quote_dcapv4(&dcap_quote, &collaterals, 1737467060);
+        let res = verify_quote_v4(&dcap_quote, &collaterals, 1737467060);
         assert!(res.is_ok(), "verification failed: {:?}", res.err());
         let verified_output = res.unwrap();
         assert_eq!(verified_output.tcb_status, Status::TcbOutOfDate);
         let bz = verified_output.to_bytes();
-        let res = VerifiedOutput::from_bytes(&bz);
+        let res = QuoteVerificationOutput::from_bytes(&bz);
         assert!(
             res.is_ok(),
             "failed to parse verified output: {:?}",

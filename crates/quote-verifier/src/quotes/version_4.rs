@@ -1,12 +1,10 @@
-use super::{
-    check_quote_header, common_verify_and_fetch_tcb, converge_tcb_status_with_qe_tcb, Result,
-};
+use super::{check_quote_header, converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_fmspc_tcbstatus_v3, merge_advisory_ids},
     collaterals::IntelCollateral,
     crypto::sha256sum,
     tdx_module::{converge_tcb_status_with_tdx_module_tcb, get_tdx_module_identity_and_tcb},
-    verifier::VerifiedOutput,
+    verifier::QuoteVerificationOutput,
     VERIFIER_VERSION,
 };
 use anyhow::{bail, Context};
@@ -17,11 +15,17 @@ use dcap_types::{
     TcbInfoV3TcbStatus, TdxModuleTcbValidationStatus, SGX_TEE_TYPE,
 };
 
-pub fn verify_quote_dcapv4(
+/// Verify the given DCAP quote v4 and return the verification output.
+///
+/// # Arguments
+/// - `quote`: The quote to be verified
+/// - `collaterals`: The collateral data to be used for verification
+/// - `current_time`: The current time in seconds since the Unix epoch
+pub fn verify_quote_v4(
     quote: &QuoteV4,
     collaterals: &IntelCollateral,
     current_time: u64,
-) -> Result<VerifiedOutput> {
+) -> Result<QuoteVerificationOutput> {
     check_quote_header(&quote.header, 4).context("invalid quote header")?;
 
     // we'll now proceed to verify the qe
@@ -39,7 +43,7 @@ pub fn verify_quote_dcapv4(
         );
     };
 
-    let (qe_tcb, sgx_extensions, tcb_info, validity) = common_verify_and_fetch_tcb(
+    let (qe_tcb, sgx_extensions, tcb_info, validity) = verify_quote_common(
         &quote.header,
         &quote.quote_body,
         &quote.signature.quote_signature,
@@ -52,13 +56,6 @@ pub fn verify_quote_dcapv4(
         current_time,
     )?;
 
-    if !validity.validate_time(current_time) {
-        bail!(
-            "certificates are expired: validity={} current_time={}",
-            validity,
-            current_time
-        );
-    }
     let TcbInfo::V3(tcb_info_v3) = tcb_info;
     let (quote_tdx_body, tee_tcb_svn) = if let QuoteBody::TD10QuoteBody(body) = &quote.quote_body {
         (Some(body), body.tee_tcb_svn)
@@ -112,7 +109,7 @@ pub fn verify_quote_dcapv4(
         advisory_ids = merge_advisory_ids(advisory_ids, tdx_module_advisory_ids);
     }
 
-    Ok(VerifiedOutput {
+    Ok(QuoteVerificationOutput {
         version: VERIFIER_VERSION,
         quote_version: quote.header.version,
         tee_type: quote.header.tee_type,

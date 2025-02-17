@@ -101,9 +101,9 @@ impl TryFrom<&Validity> for ValidityIntersection {
     }
 }
 
-/// VerifiedOutput is the output of the dcap quote verifier.
+/// QuoteVerificationOutput is the output of the quote verification process.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerifiedOutput {
+pub struct QuoteVerificationOutput {
     /// verifier version
     /// length: 2 bytes
     pub version: u16,
@@ -136,11 +136,13 @@ pub struct VerifiedOutput {
     pub advisory_ids: Vec<String>,
 }
 
-impl VerifiedOutput {
+impl QuoteVerificationOutput {
+    /// Calculate the hash of the verification output.
     pub fn hash(&self) -> [u8; 32] {
         keccak256sum(&self.to_bytes())
     }
 
+    /// Serialize the verification output to bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut output_vec = Vec::new();
 
@@ -168,7 +170,8 @@ impl VerifiedOutput {
         output_vec
     }
 
-    pub fn from_bytes(slice: &[u8]) -> Result<VerifiedOutput> {
+    /// Deserialize the verification output from bytes.
+    pub fn from_bytes(slice: &[u8]) -> Result<QuoteVerificationOutput> {
         let mut version = [0; 2];
         version.copy_from_slice(&slice[0..2]);
         let version = u16::from_be_bytes(version);
@@ -215,7 +218,7 @@ impl VerifiedOutput {
 
         let advisory_ids = <Vec<String>>::abi_decode(&slice[advisory_ids_offset..], true)?;
 
-        Ok(VerifiedOutput {
+        Ok(QuoteVerificationOutput {
             version,
             quote_version: u16::from_be_bytes(quote_version),
             tee_type: u32::from_be_bytes(tee_type),
