@@ -113,7 +113,7 @@ mod tests {
                 let pck_ca_crl = gen_crl_der(
                     &pck_certchain.pck_cert_ca,
                     &pck_certchain.pck_cert_ca_key,
-                    &[pck_certchain.pck_cert.clone()],
+                    vec![pck_certchain.pck_cert.clone()],
                     None,
                 )
                 .unwrap();
@@ -142,7 +142,7 @@ mod tests {
                 let root_ca_crl = gen_crl_der(
                     &root_ca.cert,
                     &root_ca.key,
-                    &[pck_certchain.pck_cert_ca.clone()],
+                    vec![pck_certchain.pck_cert_ca.clone()],
                     None,
                 )
                 .unwrap();

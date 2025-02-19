@@ -10,7 +10,7 @@ use crate::Result;
  * IntelCollateral is a struct that holds the collateral data that is required to verify the
  * authenticity of the quote. This includes the TCBInfo, QEIdentity, certificates and CRLs.
  */
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct IntelCollateral {
     /// TCBInfo in JSON format
     /// ref. https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-model-v3

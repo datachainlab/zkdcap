@@ -1,4 +1,7 @@
-use crate::{sgx_extensions::sgx_extensions_to_bytes, utils::gen_key};
+use crate::{
+    sgx_extensions::{sgx_extensions_to_bytes, SgxExtensionsBuilder},
+    utils::gen_key,
+};
 use anyhow::bail;
 use dcap_types::cert::SgxExtensions;
 use openssl::{
@@ -17,6 +20,17 @@ pub struct RootCa {
     pub cert: X509,
     pub key: PKey<Private>,
     pub crl: X509Crl,
+}
+
+impl RootCa {
+    pub fn with_new_crl(&self, revoked_certs: Vec<X509>) -> Result<RootCa, anyhow::Error> {
+        let crl = gen_crl(&self.cert, &self.key, revoked_certs, None)?;
+        Ok(RootCa {
+            cert: self.cert.clone(),
+            key: self.key.clone(),
+            crl,
+        })
+    }
 }
 
 pub fn gen_sgx_intel_root_ca(
@@ -75,7 +89,7 @@ pub fn gen_root_ca(
         &root_key,
         root_cert_validity.unwrap_or_else(Validity::long_duration),
     )?;
-    let crl = gen_crl(&root_cert, &root_key, &[], crl_validity)?;
+    let crl = gen_crl(&root_cert, &root_key, vec![], crl_validity)?;
     Ok(RootCa {
         cert: root_cert,
         key: root_key,
@@ -86,7 +100,7 @@ pub fn gen_root_ca(
 pub fn gen_crl(
     issuer_cert: &X509Ref,
     issuer_pkey: &PKeyRef<Private>,
-    revoked_certs: &[X509],
+    revoked_certs: Vec<X509>,
     crl_validity: Option<Validity>,
 ) -> Result<X509Crl, anyhow::Error> {
     let mut crl = X509Crl::new(issuer_cert, None)?;
@@ -95,7 +109,7 @@ pub fn gen_crl(
     crl.set_next_update(&validity.not_after())?;
     crl.increment_crl_number()?;
     for cert in revoked_certs {
-        crl.revoke(cert)?;
+        crl.revoke(&cert)?;
     }
     crl.sign(issuer_pkey, MessageDigest::sha256())?;
     Ok(crl)
@@ -104,7 +118,7 @@ pub fn gen_crl(
 pub fn gen_crl_der(
     issuer_cert: &X509Ref,
     issuer_pkey: &PKeyRef<Private>,
-    revoked_certs: &[X509],
+    revoked_certs: Vec<X509>,
     crl_validity: Option<Validity>,
 ) -> Result<Vec<u8>, anyhow::Error> {
     Ok(gen_crl(issuer_cert, issuer_pkey, revoked_certs, crl_validity)?.to_der()?)
@@ -177,7 +191,7 @@ pub fn gen_tcb_certchain(
     })
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PckCa {
     Processor,
     Platform,
@@ -326,6 +340,40 @@ pub struct PckCertchain {
     pub pck_cert_crl: X509Crl,
 }
 
+impl PckCertchain {
+    /// Generate a new PCK certificate and CRL
+    /// If `revoked` is true, the `self.pck_cert`` will be revoked in the CRL
+    pub fn gen_new_pck_cert(&self, revoked: bool) -> PckCertchain {
+        let pck_cert_key = gen_key();
+        let pck_cert = gen_pck_cert(
+            &self.pck_cert_ca,
+            &self.pck_cert_ca_key,
+            &pck_cert_key,
+            &SgxExtensionsBuilder::new().build(),
+            Validity::new_with_duration(1, 60 * 60 * 24 * 365),
+        )
+        .unwrap();
+        let pck_cert_crl = gen_crl(
+            &self.pck_cert_ca,
+            &self.pck_cert_ca_key,
+            if revoked {
+                vec![self.pck_cert.clone()]
+            } else {
+                vec![]
+            },
+            None,
+        )
+        .unwrap();
+        PckCertchain {
+            pck_cert_ca: self.pck_cert_ca.clone(),
+            pck_cert_ca_key: self.pck_cert_ca_key.clone(),
+            pck_cert,
+            pck_cert_key,
+            pck_cert_crl,
+        }
+    }
+}
+
 /// Generate Intel SGX Root CA and PCK Processor/Platform CA and PCK certificates and private keys and CRLs for testing
 pub fn gen_pck_certchain(
     root_ca: &RootCa,
@@ -354,7 +402,7 @@ pub fn gen_pck_certchain(
     let pck_cert_crl = gen_crl(
         &pck_cert_ca,
         &pck_cert_ca_key,
-        &[],
+        vec![],
         pck_cert_ca_crl_validity,
     )?;
     Ok(PckCertchain {
