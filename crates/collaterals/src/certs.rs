@@ -3,7 +3,9 @@ use crate::{
     utils::gen_key,
 };
 use anyhow::bail;
-use dcap_types::cert::SgxExtensions;
+use dcap_types::cert::{
+    SgxExtensions, SGX_PCK_CERT_CN, SGX_PCK_PLATFORM_CA_CN, SGX_PCK_PROCESSOR_CA_CN,
+};
 use openssl::{
     asn1::{Asn1Integer, Asn1Object, Asn1OctetString, Asn1Time},
     bn::BigNum,
@@ -198,21 +200,26 @@ pub enum PckCa {
 }
 
 impl PckCa {
+    /// Create a PckCa from the CN of the certificate
     pub fn from_cn(cn: &str) -> Result<Self, anyhow::Error> {
-        match cn {
-            "Intel SGX PCK Processor CA" => Ok(PckCa::Processor),
-            "Intel SGX PCK Platform CA" => Ok(PckCa::Platform),
-            _ => bail!("Invalid PCK CA CN: {}", cn),
+        if cn == SGX_PCK_PROCESSOR_CA_CN {
+            Ok(PckCa::Processor)
+        } else if cn == SGX_PCK_PLATFORM_CA_CN {
+            Ok(PckCa::Platform)
+        } else {
+            bail!("Invalid PCK CA CN: {}", cn)
         }
     }
 
+    /// Get the CN of the PckCa
     pub fn cn(&self) -> &'static str {
         match self {
-            PckCa::Processor => "Intel SGX PCK Processor CA",
-            PckCa::Platform => "Intel SGX PCK Platform CA",
+            PckCa::Processor => SGX_PCK_PROCESSOR_CA_CN,
+            PckCa::Platform => SGX_PCK_PLATFORM_CA_CN,
         }
     }
 
+    /// Get the type of the PckCa
     pub fn ca_type(&self) -> &'static str {
         match self {
             PckCa::Processor => "processor",
@@ -291,7 +298,7 @@ pub fn gen_pck_cert(
         Asn1Integer::from_bn(BigNum::from_slice(calc_skid(pck_cert_pkey).as_slice())?.as_ref())?
             .as_ref(),
     )?;
-    builder.set_subject_name(build_x509_name("Intel SGX PCK Certificate")?.as_ref())?;
+    builder.set_subject_name(build_x509_name(SGX_PCK_CERT_CN)?.as_ref())?;
     builder.set_pubkey(pck_cert_pkey)?;
 
     builder.set_not_before(&validity.not_before())?;

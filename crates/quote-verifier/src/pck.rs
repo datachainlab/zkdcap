@@ -3,6 +3,7 @@ use crate::crl::IntelSgxCrls;
 use crate::verifier::ValidityIntersection;
 use crate::Result;
 use anyhow::{bail, Context};
+use dcap_types::cert::{SGX_PCK_CERT_CN, SGX_PCK_PLATFORM_CA_CN, SGX_PCK_PROCESSOR_CA_CN};
 use x509_parser::certificate::X509Certificate;
 
 /**
@@ -28,11 +29,9 @@ pub fn validate_pck_cert<'a>(
     let pck_subject_cn = get_x509_subject_cn(pck_leaf_cert);
     let pck_issuer_cn = get_x509_issuer_cn(pck_leaf_cert);
 
-    if pck_subject_cn != "Intel SGX PCK Certificate" {
+    if pck_subject_cn != SGX_PCK_CERT_CN {
         bail!("PCK Leaf Cert is not a PCK Cert");
-    } else if pck_issuer_cn != "Intel SGX PCK Processor CA"
-        && pck_issuer_cn != "Intel SGX PCK Platform CA"
-    {
+    } else if pck_issuer_cn != SGX_PCK_PROCESSOR_CA_CN && pck_issuer_cn != SGX_PCK_PLATFORM_CA_CN {
         bail!("PCK Issuer Cert is not a PCK CA Cert");
     }
 

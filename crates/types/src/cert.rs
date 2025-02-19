@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+pub const SGX_ROOT_CA_CN: &str = "Intel SGX Root CA";
+pub const SGX_PCK_PLATFORM_CA_CN: &str = "Intel SGX PCK Platform CA";
+pub const SGX_PCK_PROCESSOR_CA_CN: &str = "Intel SGX PCK Processor CA";
+pub const SGX_PCK_CERT_CN: &str = "Intel SGX PCK Certificate";
+pub const SGX_TCB_SIGNING_CERT_CN: &str = "Intel SGX TCB Signing";
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SgxExtensionTcbLevel {

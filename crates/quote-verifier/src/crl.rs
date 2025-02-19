@@ -1,5 +1,6 @@
 use crate::{verifier::ValidityIntersection, Result};
 use anyhow::{bail, Context};
+use dcap_types::cert::{SGX_PCK_PLATFORM_CA_CN, SGX_PCK_PROCESSOR_CA_CN, SGX_ROOT_CA_CN};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
 /// The type of CRL
@@ -167,11 +168,14 @@ fn get_crl_type_from_crl(crl: &CertificateRevocationList) -> Result<CrlType> {
 
 /// Get the type of the CRL from the issuer common name
 fn get_crl_type_from_issuer_cn(issuer: &str) -> Result<CrlType> {
-    match issuer {
-        "Intel SGX Root CA" => Ok(CrlType::SgxRootCa),
-        "Intel SGX PCK Processor CA" => Ok(CrlType::SgxPckProcessor),
-        "Intel SGX PCK Platform CA" => Ok(CrlType::SgxPckPlatform),
-        _ => bail!("Unknown CRL issuer: {}", issuer),
+    if issuer == SGX_ROOT_CA_CN {
+        Ok(CrlType::SgxRootCa)
+    } else if issuer == SGX_PCK_PROCESSOR_CA_CN {
+        Ok(CrlType::SgxPckProcessor)
+    } else if issuer == SGX_PCK_PLATFORM_CA_CN {
+        Ok(CrlType::SgxPckPlatform)
+    } else {
+        bail!("Unknown CRL issuer: {}", issuer);
     }
 }
 
