@@ -27,7 +27,15 @@ use dcap_types::{EnclaveIdentityV2TcbStatus, Status, TcbInfoV3TcbStatus};
 use dcap_types::{ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID};
 use x509_parser::certificate::X509Certificate;
 
-/// common_verify_and_fetch_tcb is a common function that verifies the quote and fetches the TCB info
+/// The TCB info of the QE
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QeTcb {
+    pub tcb_evaluation_data_number: u32,
+    pub tcb_status: EnclaveIdentityV2TcbStatus,
+    pub advisory_ids: Vec<String>,
+}
+
+/// Verify the quote and return the TCB info of the QE, SGX extensions from the PCK leaf certificate, TCB info of the platform, and the validity intersection of all collaterals
 ///
 /// # Arguments
 ///
@@ -45,13 +53,12 @@ use x509_parser::certificate::X509Certificate;
 /// # Returns
 ///
 /// * A tuple containing:
-/// * The TCB status of the QE
-/// * The advisory IDs of the QE
+/// * The TCB info of the QE
 /// * The SGX extensions from the PCK leaf certificate
-/// * The TCB info
+/// * The TCB info of the platform
 /// * The validity intersection of all collaterals
 #[allow(clippy::too_many_arguments)]
-fn common_verify_and_fetch_tcb(
+fn verify_quote_common(
     quote_header: &QuoteHeader,
     quote_body: &QuoteBody,
     ecdsa_attestation_signature: &[u8; 64],
@@ -62,13 +69,7 @@ fn common_verify_and_fetch_tcb(
     qe_cert_data: &CertData,
     collaterals: &IntelCollateral,
     current_time: u64,
-) -> Result<(
-    EnclaveIdentityV2TcbStatus,
-    Vec<String>,
-    SgxExtensions,
-    TcbInfo,
-    ValidityIntersection,
-)> {
+) -> Result<(QeTcb, SgxExtensions, TcbInfo, ValidityIntersection)> {
     // get the certchain embedded in the ecda quote signature data
     // this can be one of 5 types, and we only support type 5
     // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/aa239d25a437a28f3f4de92c38f5b6809faac842/QuoteGeneration/quote_wrapper/common/inc/sgx_quote_3.h#L63C4-L63C112
@@ -143,41 +144,34 @@ fn common_verify_and_fetch_tcb(
     };
 
     // validate QE Report and Quote Body
-    let (qe_tcb_status, advisory_ids, pck_cert_sgx_extensions) = {
-        let (qe_tcb_status, advisory_ids) = verify_qe_report(
-            qe_report,
-            ecdsa_attestation_pubkey,
-            qe_auth_data,
-            &qeidentityv2,
-            &pck_leaf_cert,
-            qe_report_signature,
-        )?;
-        verify_quote_attestation(
-            quote_header,
-            quote_body,
-            ecdsa_attestation_pubkey,
-            ecdsa_attestation_signature,
-        )
-        .context("Invalid quote attestation")?;
-
-        (
-            qe_tcb_status,
-            advisory_ids,
-            extract_sgx_extensions(&pck_leaf_cert)?,
-        )
-    };
+    let qe_tcb = verify_qe_report(
+        qe_report,
+        ecdsa_attestation_pubkey,
+        qe_auth_data,
+        &qeidentityv2,
+        &pck_leaf_cert,
+        qe_report_signature,
+    )?;
+    verify_quote_attestation(
+        quote_header,
+        quote_body,
+        ecdsa_attestation_pubkey,
+        ecdsa_attestation_signature,
+    )
+    .context("Invalid quote attestation")?;
+    let pck_cert_sgx_extensions = extract_sgx_extensions(&pck_leaf_cert)?;
 
     if !validity.validate() {
         bail!("Validity intersection provided from collaterals is invalid");
+    } else if !validity.validate_time(current_time) {
+        bail!(
+            "certificates are expired: validity={} current_time={}",
+            validity,
+            current_time
+        );
     }
 
-    Ok((
-        qe_tcb_status,
-        advisory_ids,
-        pck_cert_sgx_extensions,
-        tcb_info,
-        validity,
-    ))
+    Ok((qe_tcb, pck_cert_sgx_extensions, tcb_info, validity))
 }
 
 fn check_quote_header(quote_header: &QuoteHeader, expected_quote_version: u16) -> Result<()> {
@@ -206,7 +200,7 @@ fn verify_qe_report(
     qeidentityv2: &EnclaveIdentityV2,
     pck_leaf_cert: &X509Certificate,
     qe_report_signature: &[u8; 64],
-) -> Result<(EnclaveIdentityV2TcbStatus, Vec<String>)> {
+) -> Result<QeTcb> {
     // validate QEReport then get TCB Status
     if !validate_qe_report_data(
         &qe_report.report_data,
@@ -228,7 +222,14 @@ fn verify_qe_report(
 
     // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L92
     // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L286
-    get_qe_tcbstatus(qe_report.isv_svn, &qeidentityv2.enclave_identity.tcb_levels)
+    let (tcb_status, advisory_ids) =
+        get_qe_tcbstatus(qe_report.isv_svn, &qeidentityv2.enclave_identity.tcb_levels)?;
+
+    Ok(QeTcb {
+        tcb_evaluation_data_number: qeidentityv2.enclave_identity.tcb_evaluation_data_number,
+        tcb_status,
+        advisory_ids,
+    })
 }
 
 /// Verify the attestation signature for the quote (header + body) using the attestation public key
@@ -239,8 +240,7 @@ fn verify_quote_attestation(
     ecdsa_attestation_signature: &[u8; 64],
 ) -> Result<()> {
     // verify the signature for attestation body
-    let mut data = Vec::new();
-    data.extend_from_slice(&quote_header.to_bytes());
+    let mut data = quote_header.to_bytes().to_vec();
     match quote_body {
         QuoteBody::SGXQuoteBody(body) => data.extend_from_slice(&body.to_bytes()),
         QuoteBody::TD10QuoteBody(body) => data.extend_from_slice(&body.to_bytes()),

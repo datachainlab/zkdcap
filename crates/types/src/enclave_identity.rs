@@ -144,7 +144,7 @@ pub struct EnclaveIdentityV2Inner {
     pub version: u64,
     pub issue_date: String,
     pub next_update: String,
-    pub tcb_evaluation_data_number: u64,
+    pub tcb_evaluation_data_number: u32,
     pub miscselect: String,
     pub miscselect_mask: String,
     pub attributes: String,
