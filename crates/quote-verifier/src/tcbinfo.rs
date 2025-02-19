@@ -3,6 +3,7 @@ use crate::crypto::verify_p256_signature_bytes;
 use crate::verifier::ValidityIntersection;
 use crate::Result;
 use anyhow::{bail, Context};
+use dcap_types::cert::SGX_TCB_SIGNING_CERT_CN;
 use dcap_types::tcbinfo::TcbInfoV3;
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 use x509_parser::prelude::X509Certificate;
@@ -28,7 +29,7 @@ pub fn validate_tcb_signing_certificate(
     intel_sgx_root_cert: &X509Certificate,
     intel_crls: &IntelSgxCrls,
 ) -> Result<ValidityIntersection> {
-    if get_x509_subject_cn(tcb_signing_cert) != "Intel SGX TCB Signing" {
+    if get_x509_subject_cn(tcb_signing_cert) != SGX_TCB_SIGNING_CERT_CN {
         bail!("Invalid TCB Signing Cert Subject");
     } else if get_x509_issuer_cn(tcb_signing_cert) != get_x509_subject_cn(intel_sgx_root_cert) {
         bail!("TCB Signing Cert and Root Cert do not match");
@@ -153,7 +154,7 @@ mod tests {
             let root_ca_crl = gen_crl_der(
                 &root_ca.cert,
                 &root_ca.key,
-                &[tcb_certchain.cert.clone()],
+                vec![tcb_certchain.cert.clone()],
                 None,
             )
             .unwrap();
@@ -180,7 +181,7 @@ mod tests {
             let pck_ca_crl = gen_crl_der(
                 &pck_certchain.pck_cert_ca,
                 &pck_certchain.pck_cert_ca_key,
-                &[tcb_certchain.cert.clone()],
+                vec![tcb_certchain.cert.clone()],
                 None,
             )
             .unwrap();
