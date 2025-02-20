@@ -33,3 +33,9 @@ jobs:
         run: rzup install rust && rzup install cargo-risczero 1.2.2
       - run: . "/home/runner/.bashrc" && ZKDCAP_RISC0_BUILD=1 cargo build -r --manifest-path=./zkvm/risc0/Cargo.toml
       - run: git diff --exit-code
+
+  test-i686:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker run -v .:/root/zkdcap -w /root/zkdcap -t i386/rust:1.84 cargo test
