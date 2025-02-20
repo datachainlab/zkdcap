@@ -5,9 +5,9 @@ use dcap_types::cert::{SgxExtensionTcbLevel, SgxExtensions};
 use dcap_types::tcbinfo::{TcbComponent, TcbInfoV3};
 use dcap_types::TcbInfoV3TcbStatus;
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
-use x509_parser::oid_registry::OID_X509_EXT_CRL_DISTRIBUTION_POINTS;
 use x509_parser::prelude::*;
 
+/// Parse a PEM-encoded certificate chain into a vector of `X509Certificate`.
 pub fn parse_certchain(pem_certs: &[Pem]) -> crate::Result<Vec<X509Certificate>> {
     Ok(pem_certs
         .iter()
@@ -44,7 +44,7 @@ pub fn verify_crl_signature(
     verify_p256_signature_der(data, signature, public_key)
 }
 
-// verify_certchain_signature just verify that the certchain signature matches, any other checks will be done by the caller
+/// verify_certchain_signature just verify that the certchain signature matches, any other checks will be done by the caller
 pub fn verify_certchain_signature(
     certs: &[&X509Certificate],
     root_cert: &X509Certificate,
@@ -61,44 +61,21 @@ pub fn verify_certchain_signature(
     verify_certificate(prev_cert, root_cert)
 }
 
+/// Get the Subject Common Name (CN) from a certificate.
 pub fn get_x509_subject_cn(cert: &X509Certificate) -> String {
     let subject = cert.subject();
     let cn = subject.iter_common_name().next().unwrap();
     cn.as_str().unwrap().to_string()
 }
 
+/// Get the Issuer Common Name (CN) from a certificate.
 pub fn get_x509_issuer_cn(cert: &X509Certificate) -> String {
     let issuer = cert.issuer();
     let cn = issuer.iter_common_name().next().unwrap();
     cn.as_str().unwrap().to_string()
 }
 
-pub fn get_crl_uri(cert: &X509Certificate) -> Option<String> {
-    let crl_ext = cert
-        .get_extension_unique(&OID_X509_EXT_CRL_DISTRIBUTION_POINTS)
-        .unwrap()
-        .unwrap();
-    let crl_uri = match crl_ext.parsed_extension() {
-        ParsedExtension::CRLDistributionPoints(crls) => {
-            match &crls.iter().next().unwrap().distribution_point {
-                Some(DistributionPointName::FullName(uri)) => {
-                    let uri = &uri[0];
-                    match uri {
-                        GeneralName::URI(uri) => Some(uri.to_string()),
-                        _ => None,
-                    }
-                }
-                _ => None,
-            }
-        }
-        _ => {
-            unreachable!();
-        }
-    };
-    crl_uri
-}
-
-/// https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L129-L181
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L129-L181>
 pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
     tee_type: u32,
     tee_tcb_svn: Option<[u8; 16]>,
@@ -178,6 +155,18 @@ pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
     }
 }
 
+/// Merge two vectors of advisory ids into one vector
+/// This function will remove any duplicates
+pub fn merge_advisory_ids(advisory_ids: Vec<String>, advisory_ids2: Vec<String>) -> Vec<String> {
+    let mut ids = advisory_ids
+        .into_iter()
+        .chain(advisory_ids2)
+        .collect::<Vec<_>>();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
 fn match_sgxtcbcomp(tcb: &SgxExtensionTcbLevel, sgxtcbcomponents: &[TcbComponent; 16]) -> bool {
     // Compare all of the SGX TCB Comp SVNs retrieved from the SGX PCK Certificate (from 01 to 16) with the corresponding values of SVNs in sgxtcbcomponents array of TCB Level.
     // If all SGX TCB Comp SVNs in the certificate are greater or equal to the corresponding values in TCB Level, then return true.
@@ -196,16 +185,4 @@ fn match_tdxtcbcomp(tee_tcb_svn: &[u8; 16], tdxtcbcomponents: &[TcbComponent; 16
         .iter()
         .zip(tdxtcbcomponents.iter())
         .all(|(tee, tcb)| *tee >= tcb.svn)
-}
-
-/// Merge two vectors of advisory ids into one vector
-/// This function will remove any duplicates
-pub fn merge_advisory_ids(advisory_ids: Vec<String>, advisory_ids2: Vec<String>) -> Vec<String> {
-    let mut ids = advisory_ids
-        .into_iter()
-        .chain(advisory_ids2)
-        .collect::<Vec<_>>();
-    ids.sort();
-    ids.dedup();
-    ids
 }

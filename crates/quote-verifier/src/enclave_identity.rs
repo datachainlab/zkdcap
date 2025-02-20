@@ -59,7 +59,10 @@ pub fn validate_qe_identityv2(
     })
 }
 
-pub fn get_qe_tcbstatus(
+/// Get the TCB status for matching the ISV SVN of the QE report
+///
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/stable/Src/AttestationLibrary/src/Verifiers/EnclaveIdentityV2.cpp#L326>
+pub fn get_qe_tcb_status(
     qe_report_isv_svn: u16,
     qeidentityv2_tcb_levels: &[EnclaveIdentityV2TcbLevelItem],
 ) -> Result<(EnclaveIdentityV2TcbStatus, Vec<String>)> {
@@ -154,23 +157,23 @@ mod tests {
         ]))
         .unwrap();
 
-        let (status, advisory_ids) = get_qe_tcbstatus(9, &tcb_levels).unwrap();
+        let (status, advisory_ids) = get_qe_tcb_status(9, &tcb_levels).unwrap();
         assert_eq!(status, EnclaveIdentityV2TcbStatus::UpToDate);
         assert!(advisory_ids.is_empty());
 
-        let (status, advisory_ids) = get_qe_tcbstatus(8, &tcb_levels).unwrap();
+        let (status, advisory_ids) = get_qe_tcb_status(8, &tcb_levels).unwrap();
         assert_eq!(status, EnclaveIdentityV2TcbStatus::UpToDate);
         assert!(advisory_ids.is_empty());
 
-        let (status, advisory_ids) = get_qe_tcbstatus(7, &tcb_levels).unwrap();
+        let (status, advisory_ids) = get_qe_tcb_status(7, &tcb_levels).unwrap();
         assert_eq!(status, EnclaveIdentityV2TcbStatus::OutOfDate);
         assert!(advisory_ids.is_empty());
 
-        let (status, advisory_ids) = get_qe_tcbstatus(5, &tcb_levels).unwrap();
+        let (status, advisory_ids) = get_qe_tcb_status(5, &tcb_levels).unwrap();
         assert_eq!(status, EnclaveIdentityV2TcbStatus::Revoked);
         assert_eq!(advisory_ids, vec!["INTEL-SA-00615"]);
 
-        let res = get_qe_tcbstatus(4, &tcb_levels);
+        let res = get_qe_tcb_status(4, &tcb_levels);
         assert!(res.is_err(), "{:?}", res);
     }
 }

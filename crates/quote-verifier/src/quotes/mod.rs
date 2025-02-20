@@ -6,7 +6,7 @@ use crate::collaterals::IntelCollateral;
 use crate::crl::IntelSgxCrls;
 use crate::crypto::sha256sum;
 use crate::crypto::verify_p256_signature_bytes;
-use crate::enclave_identity::get_qe_tcbstatus;
+use crate::enclave_identity::get_qe_tcb_status;
 use crate::enclave_identity::validate_qe_identityv2;
 use crate::pck::validate_pck_cert;
 use crate::sgx_extensions::extract_sgx_extensions;
@@ -187,7 +187,7 @@ fn check_quote_header(quote_header: &QuoteHeader, expected_quote_version: u16) -
 }
 /// Verify the QE Report and return the TCB Status and Advisory IDs
 ///
-/// ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L47
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L47>
 /// do the following checks:
 /// - ensure that `ecdsa_attestation_key` and `qe_auth_data` are valid against the `qe_report.report_data`
 /// - validate the `qe_report` against the `qeidentityv2`
@@ -223,7 +223,7 @@ fn verify_qe_report(
     // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L92
     // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L286
     let (tcb_status, advisory_ids) =
-        get_qe_tcbstatus(qe_report.isv_svn, &qeidentityv2.enclave_identity.tcb_levels)?;
+        get_qe_tcb_status(qe_report.isv_svn, &qeidentityv2.enclave_identity.tcb_levels)?;
 
     Ok(QeTcb {
         tcb_evaluation_data_number: qeidentityv2.enclave_identity.tcb_evaluation_data_number,

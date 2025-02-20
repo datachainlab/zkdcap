@@ -142,7 +142,7 @@ impl<'a> IntelSgxCrls<'a> {
 
 /// Get the CRL type of the certificate
 /// We assume that the issuer of the certificate issues the only one type of CRL
-/// ref. p.5 https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf
+/// ref. p.5 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf>
 fn get_crl_type_from_cert(cert: &X509Certificate) -> Result<CrlType> {
     let issuer_cn = cert
         .issuer()
@@ -155,7 +155,7 @@ fn get_crl_type_from_cert(cert: &X509Certificate) -> Result<CrlType> {
 
 /// Get the type of the CRL from the issuer common name of the CRL
 /// We assume that the issuer of the crl issues the only one type of CRL
-/// ref. p.5 https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf
+/// ref. p.5 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf>
 fn get_crl_type_from_crl(crl: &CertificateRevocationList) -> Result<CrlType> {
     get_crl_type_from_issuer_cn(
         crl.issuer()

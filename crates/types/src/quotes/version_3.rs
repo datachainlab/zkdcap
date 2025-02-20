@@ -1,28 +1,29 @@
-// https://download.01.org/intel-sgx/latest/dcap-latest/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf
-
-use anyhow::anyhow;
-
 use super::{body::EnclaveReport, CertData, QeAuthData, QuoteHeader};
 use crate::Result;
+use anyhow::anyhow;
 
-// high level sgx quote structure
-// [48 - header] [384 - isv enclave report] [4 - quote signature length] [var - quote signature]
+/// Quote structure for DCAP version 3.
+/// The structure is defined in the Intel SGX ECDSA Quote Library Reference.
+/// ref. <https://download.01.org/intel-sgx/latest/dcap-latest/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuoteV3 {
-    pub header: QuoteHeader, // [48 bytes]
-    // Header of Quote data structure. This field is transparent (the user knows
-    // its internal structure). Rest of the Quote data structure can be
-    // treated as opaque (hidden from the user).
-    pub isv_enclave_report: EnclaveReport, // [384 bytes]
-    // Report of the attested ISV Enclave.
-    // The CPUSVN and ISVSVN is the TCB when the quote is generated.
-    // The REPORT.ReportData is defined by the ISV but should provide quote replay
-    // protection if required.
-    pub signature_len: u32, // [4 bytes]
-    // Size of the Quote Signature Data structure in bytes.
-    pub signature: QuoteSignatureDataV3, // [variable bytes]
-                                         // Variable-length data containing the signature and supporting data.
-                                         // E.g. ECDSA 256-bit Quote Signature Data Structure (SgxQuoteSignatureData)
+    /// Header of Quote data structure. This field is transparent (the user knows
+    /// its internal structure). Rest of the Quote data structure can be
+    /// treated as opaque (hidden from the user).
+    pub header: QuoteHeader,
+    /// Report of the attested ISV Enclave.
+    /// The CPUSVN and ISVSVN is the TCB when the quote is generated.
+    /// The REPORT.ReportData is defined by the ISV but should provide quote replay
+    /// protection if required.
+    pub isv_enclave_report: EnclaveReport,
+    /// Size of the Quote Signature Data structure in bytes.
+    /// Variable-length data containing the signature and supporting data.
+    /// E.g. ECDSA 256-bit Quote Signature Data Structure (SgxQuoteSignatureData)
+    /// The size of the signature data structure in bytes.
+    pub signature_len: u32,
+    /// The signature data structure is a variable-length data structure that contains the signature and supporting data.
+    /// E.g. ECDSA 256-bit Quote Signature Data Structure (SgxQuoteSignatureData)
+    pub signature: QuoteSignatureDataV3,
 }
 
 impl QuoteV3 {
