@@ -1,3 +1,6 @@
+use crate::TdxModuleTcbStatus;
+use anyhow::bail;
+use core::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 /// TCB Info structure
@@ -78,7 +81,7 @@ impl TcbInfoV3Inner {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModule {
-    /// Base 16-encoded string representation of the measurement of a TDX SEAM module’s signer.
+    /// Base 16-encoded string representation of the measurement of a TDX SEAM module’s signer. The length of the string is 96 characters.
     pub mrsigner: String,
     /// Hex-encoded byte array (8 bytes) representing attributes "golden" value.
     pub attributes: String,
@@ -86,12 +89,33 @@ pub struct TdxModule {
     pub attributes_mask: String,
 }
 
+impl TdxModule {
+    /// Returns the MRSIGNER
+    pub fn mrsigner(&self) -> Result<[u8; 48], anyhow::Error> {
+        let mut mrsigner = [0; 48];
+        let mrsigner_bytes = hex::decode(&self.mrsigner)?;
+        mrsigner.copy_from_slice(&mrsigner_bytes);
+        Ok(mrsigner)
+    }
+
+    /// Returns the attributes
+    pub fn attributes(&self) -> Result<u64, anyhow::Error> {
+        if self.attributes.len() != 16 {
+            bail!("Invalid u64 str length");
+        }
+        match u64::from_str_radix(&self.attributes, 16) {
+            Ok(ret) => Ok(ret),
+            Err(_) => bail!("Invalid hex character found"),
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModuleIdentities {
     /// Identifier of TDX Module
     pub id: String,
-    /// Base 16-encoded string representation of the measurement of a TDX SEAM module’s signer.
+    /// Base 16-encoded string representation of the measurement of a TDX SEAM module’s signer. The length of the string is 96 characters.
     pub mrsigner: String,
     /// Base 16-encoded string representation of the byte array (8 bytes) representing attributes "golden" value.
     pub attributes: String,
@@ -100,6 +124,27 @@ pub struct TdxModuleIdentities {
     pub attributes_mask: String,
     /// List of TCB levels for the TDX SEAM module
     pub tcb_levels: Vec<TdxModuleIdentitiesTcbLevelItem>,
+}
+
+impl TdxModuleIdentities {
+    /// Returns the MRSIGNER
+    pub fn mrsigner(&self) -> Result<[u8; 48], anyhow::Error> {
+        let mut mrsigner = [0; 48];
+        let mrsigner_bytes = hex::decode(&self.mrsigner)?;
+        mrsigner.copy_from_slice(&mrsigner_bytes);
+        Ok(mrsigner)
+    }
+
+    /// Returns the attributes
+    pub fn attributes(&self) -> Result<u64, anyhow::Error> {
+        if self.attributes.len() != 16 {
+            bail!("Invalid u64 str length");
+        }
+        match u64::from_str_radix(&self.attributes, 16) {
+            Ok(ret) => Ok(ret),
+            Err(_) => bail!("Invalid hex character found"),
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -124,6 +169,13 @@ pub struct TdxModuleIdentitiesTcbLevelItem {
     #[serde(rename(serialize = "advisoryIDs", deserialize = "advisoryIDs"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub advisory_ids: Option<Vec<String>>,
+}
+
+impl TdxModuleIdentitiesTcbLevelItem {
+    /// Returns the TCB status of the TDX module
+    pub fn tcb_status(&self) -> Result<TdxModuleTcbStatus, anyhow::Error> {
+        TdxModuleTcbStatus::from_str(&self.tcb_status)
+    }
 }
 
 /// TDX SEAM module’s ISV SVN

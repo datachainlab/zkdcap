@@ -1,6 +1,6 @@
 use super::{check_quote_header, converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
 use crate::{
-    cert::{get_sgx_tdx_fmspc_tcbstatus_v3, merge_advisory_ids},
+    cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collaterals::IntelCollateral,
     crypto::keccak256sum,
     verifier::QuoteVerificationOutput,
@@ -41,7 +41,7 @@ pub fn verify_quote_v3(
     )?;
     let TcbInfo::V3(tcb_info_v3) = tcb_info;
     let (tcb_status, _, tcb_advisory_ids) =
-        get_sgx_tdx_fmspc_tcbstatus_v3(quote.header.tee_type, None, &sgx_extensions, &tcb_info_v3)?;
+        get_sgx_tdx_tcb_status_v3(quote.header.tee_type, None, &sgx_extensions, &tcb_info_v3)?;
 
     Ok(QuoteVerificationOutput {
         version: VERIFIER_VERSION,

@@ -1,9 +1,9 @@
 use super::{check_quote_header, converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
 use crate::{
-    cert::{get_sgx_tdx_fmspc_tcbstatus_v3, merge_advisory_ids},
+    cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collaterals::IntelCollateral,
     crypto::sha256sum,
-    tdx_module::{converge_tcb_status_with_tdx_module_tcb, get_tdx_module_identity_and_tcb},
+    tdx_module::{check_tdx_module_tcb_status, converge_tcb_status_with_tdx_module_tcb},
     verifier::QuoteVerificationOutput,
     VERIFIER_VERSION,
 };
@@ -12,7 +12,7 @@ use core::cmp::min;
 use dcap_types::{
     quotes::{body::QuoteBody, version_4::QuoteV4, CertDataType},
     tcbinfo::TcbInfo,
-    TcbInfoV3TcbStatus, TdxModuleTcbValidationStatus, SGX_TEE_TYPE,
+    TdxModuleTcbValidationStatus, SGX_TEE_TYPE, TDX_TEE_TYPE,
 };
 
 /// Verify the given DCAP quote v4 and return the verification output.
@@ -58,24 +58,20 @@ pub fn verify_quote_v4(
 
     let TcbInfo::V3(tcb_info_v3) = tcb_info;
     let (quote_tdx_body, tee_tcb_svn) = if let QuoteBody::TD10QuoteBody(body) = &quote.quote_body {
-        (Some(body), body.tee_tcb_svn)
+        (Some(body), Some(body.tee_tcb_svn))
     } else {
-        // SGX does not produce tee_tcb_svns
-        (None, [0; 16])
+        // SGX does not produce tee_tcb_svn
+        (None, None)
     };
-
-    // check TCB level
 
     let tee_type = quote.header.tee_type;
     let (sgx_tcb_status, tdx_tcb_status, tcb_advisory_ids) =
-        get_sgx_tdx_fmspc_tcbstatus_v3(tee_type, Some(tee_tcb_svn), &sgx_extensions, &tcb_info_v3)?;
+        get_sgx_tdx_tcb_status_v3(tee_type, tee_tcb_svn, &sgx_extensions, &tcb_info_v3)?;
 
-    let mut advisory_ids = merge_advisory_ids(tcb_advisory_ids, qe_tcb.advisory_ids);
-    let mut tcb_status: TcbInfoV3TcbStatus;
-    if quote.header.tee_type == SGX_TEE_TYPE {
-        tcb_status = sgx_tcb_status;
-    } else {
-        tcb_status = tdx_tcb_status.context("TDX TCB Status not found")?;
+    let advisory_ids = merge_advisory_ids(tcb_advisory_ids, qe_tcb.advisory_ids);
+
+    let (tcb_status, advisory_ids) = if tee_type == TDX_TEE_TYPE {
+        let tdx_tcb_status = tdx_tcb_status.context("TDX TCB Status not found")?;
 
         // Fetch TDXModule TCB and TDXModule Identity
         let (
@@ -83,36 +79,42 @@ pub fn verify_quote_v4(
             tdx_module_advisory_ids,
             tdx_module_mrsigner,
             tdx_module_attributes,
-        ) = get_tdx_module_identity_and_tcb(&tee_tcb_svn, &tcb_info_v3)?;
+        ) = check_tdx_module_tcb_status(&tee_tcb_svn.unwrap_or_default(), &tcb_info_v3)?;
         if tdx_module_tcb_status == TdxModuleTcbValidationStatus::TcbNotSupported
             || tdx_module_tcb_status == TdxModuleTcbValidationStatus::TdxModuleMismatch
         {
-            // NOTE: early return - modify from the original
+            // NOTE: early return - different from the original code
             bail!("TDX Module TCB not supported or out of date");
         }
 
         // check TDX module
-        let (tdx_report_mrsigner, tdx_report_attributes) = if let Some(tdx_body) = quote_tdx_body {
-            (tdx_body.mrsignerseam, tdx_body.seam_attributes)
-        } else {
-            unreachable!();
-        };
+        let (tdx_report_mrsigner, tdx_report_attributes) = quote_tdx_body
+            .map(|tdx_body| (tdx_body.mrsignerseam, tdx_body.seam_attributes))
+            .context("TDX Quote Body not found")?;
 
-        // TODO check if these validations are correct
-        let mr_signer_matched = tdx_module_mrsigner == tdx_report_mrsigner;
-        let attributes_matched = tdx_module_attributes == tdx_report_attributes;
-        if !mr_signer_matched || !attributes_matched {
-            bail!("TDX module values mismatch");
+        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L181
+        if tdx_module_mrsigner != tdx_report_mrsigner {
+            bail!("TDX module mrsigner mismatch");
+        }
+        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L200
+        if tdx_module_attributes != tdx_report_attributes {
+            bail!("TDX module attributes mismatch");
         }
 
-        tcb_status = converge_tcb_status_with_tdx_module_tcb(tcb_status, tdx_module_tcb_status);
-        advisory_ids = merge_advisory_ids(advisory_ids, tdx_module_advisory_ids);
-    }
+        (
+            converge_tcb_status_with_tdx_module_tcb(tdx_tcb_status, tdx_module_tcb_status),
+            merge_advisory_ids(advisory_ids, tdx_module_advisory_ids),
+        )
+    } else if tee_type == SGX_TEE_TYPE {
+        (sgx_tcb_status, advisory_ids)
+    } else {
+        bail!("Unsupported TEE type: {}", tee_type);
+    };
 
     Ok(QuoteVerificationOutput {
         version: VERIFIER_VERSION,
         quote_version: quote.header.version,
-        tee_type: quote.header.tee_type,
+        tee_type,
         tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
         min_tcb_evaluation_data_number: min(
             qe_tcb.tcb_evaluation_data_number,

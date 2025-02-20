@@ -26,28 +26,14 @@ pub const INTEL_QE_VENDOR_ID: [u8; 16] = [
 
 pub(crate) type Result<T> = core::result::Result<T, anyhow::Error>;
 
-/*
-tcbStatus:
-    type: string
-    enum:
-        - UpToDate
-        - OutOfDate
-        - Revoked
-    description: >-
-        TCB level status. One of the following values:
-
-        "UpToDate" - TCB level of the SGX platform is up-to-date.
-
-        "OutOfDate" - TCB level of SGX platform is outdated.
-
-        "Revoked" - TCB level of SGX platform is revoked.
-        The platform is not trustworthy.
- */
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EnclaveIdentityV2TcbStatus {
-    UpToDate,  // equivalent to STATUS_OK
-    OutOfDate, // equivalent to STATUS_SGX_ENCLAVE_REPORT_ISVSVN_OUT_OF_DATE
-    Revoked,   // equivalent to STATUS_SGX_ENCLAVE_REPORT_ISVSVN_REVOKED
+    /// TCB level of the SGX platform is up-to-date.
+    UpToDate,
+    /// TCB level of SGX platform is outdated.
+    OutOfDate,
+    /// TCB level of SGX platform is revoked. The platform is not trustworthy.
+    Revoked,
 }
 
 impl FromStr for EnclaveIdentityV2TcbStatus {
@@ -63,54 +49,21 @@ impl FromStr for EnclaveIdentityV2TcbStatus {
     }
 }
 
-/*
-// TcbInfoV3
-tcbStatus:
-    type: string
-    enum:
-        - UpToDate
-        - SWHardeningNeeded
-        - ConfigurationNeeded
-        - ConfigurationAndSWHardeningNeeded
-        - OutOfDate
-        - OutOfDateConfigurationNeeded
-        - Revoked
-    description: >-
-        TCB level status. One of the following values:
-
-        "UpToDate" - TCB level of the SGX platform is up-to-date.
-
-        "SWHardeningNeeded" - TCB level of the SGX platform
-        is up-to-date but due to certain issues affecting the
-        platform, additional SW Hardening in the attesting
-        SGX enclaves may be needed.
-
-        "ConfigurationNeeded" - TCB level of the SGX platform
-        is up-to-date but additional configuration of SGX
-        platform may be needed.
-
-        "ConfigurationAndSWHardeningNeeded" - TCB level of the
-        SGX platform is up-to-date but additional configuration
-        for the platform and SW Hardening in the attesting SGX
-        enclaves may be needed.
-
-        "OutOfDate" - TCB level of SGX platform is outdated.
-
-        "OutOfDateConfigurationNeeded" - TCB level of SGX
-        platform is outdated and additional configuration
-        of SGX platform may be needed.
-
-        "Revoked" - TCB level of SGX platform is revoked.
-        The platform is not trustworthy.
- */
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TcbInfoV3TcbStatus {
+    /// TCB level of the SGX platform is up-to-date.
     UpToDate,
+    /// TCB level of the SGX platform is up-to-date but due to certain issues affecting the platform, additional SW Hardening in the attesting SGX enclaves may be needed.
     SWHardeningNeeded,
+    /// TCB level of the SGX platform is up-to-date but additional configuration of SGX platform may be needed.
     ConfigurationNeeded,
+    /// TCB level of the SGX platform is up-to-date but additional configuration for the platform and SW Hardening in the attesting SGX enclaves may be needed.
     ConfigurationAndSWHardeningNeeded,
+    /// TCB level of SGX platform is outdated.
     OutOfDate,
+    /// TCB level of SGX platform is outdated and additional configuration of SGX platform may be needed.
     OutOfDateConfigurationNeeded,
+    /// TCB level of SGX platform is revoked. The platform is not trustworthy.
     Revoked,
 }
 
@@ -131,27 +84,14 @@ impl FromStr for TcbInfoV3TcbStatus {
     }
 }
 
-/*
-tcbStatus:
-    type: string
-    enum:
-        - UpToDate
-        - OutOfDate
-        - Revoked
-    description: >-
-        TCB level status. One of the following values:
-
-        "UpToDate" - TCB level of the TDX SEAM Module is up-to-date.
-
-        "OutOfDate" - TCB level of TDX SEAM Module is outdated.
-
-        "Revoked" - TCB level of TDX SEAM Module is revoked.
-        The platform is not trustworthy.
-*/
+/// TCB level status of TDX SEAM Module
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TdxModuleTcbStatus {
+    /// TCB level of the TDX SEAM Module is up-to-date.
     UpToDate,
+    /// TCB level of TDX SEAM Module is outdated.
     OutOfDate,
+    /// TCB level of TDX SEAM Module is revoked. The platform is not trustworthy.
     Revoked,
 }
 
@@ -205,10 +145,12 @@ pub enum Status {
 }
 
 impl Status {
+    /// Convert the status to u8
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }
 
+    /// Convert u8 to Status
     pub fn from_u8(u: u8) -> Result<Self> {
         Ok(match u {
             0 => Status::Ok,

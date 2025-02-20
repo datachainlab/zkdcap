@@ -1,48 +1,53 @@
 use crate::Result;
-use anyhow::bail;
+use anyhow::Context;
 use dcap_types::tcbinfo::TcbInfoV3;
 use dcap_types::{TcbInfoV3TcbStatus, TdxModuleTcbStatus, TdxModuleTcbValidationStatus};
 use std::str::FromStr;
 
-// https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L62-L97
-pub fn get_tdx_module_identity_and_tcb(
+/// Get the TCB status of the TDX module corresponding to the given SVN.
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L62-L97>
+///
+/// # Arguments
+/// - `tee_tcb_svn`: The SVN of the TEE TCB extracted from the `TD10ReportBody::tee_tcb_svn`
+/// - `tcb_info_v3`: The TDX TCB Info V3
+/// # Returns
+/// - The TCB status of the TDX module
+pub fn check_tdx_module_tcb_status(
     tee_tcb_svn: &[u8; 16],
     tcb_info_v3: &TcbInfoV3,
 ) -> Result<(TdxModuleTcbValidationStatus, Vec<String>, [u8; 48], u64)> {
-    let tdx_module = if let Some(tdx_module_obj) = &tcb_info_v3.tcb_info.tdx_module {
-        tdx_module_obj
-    } else {
-        bail!("TDX module not found");
-    };
+    let tdx_module = tcb_info_v3
+        .tcb_info
+        .tdx_module
+        .as_ref()
+        .context("TDX module not found")?;
 
     let tdx_module_isv_svn = tee_tcb_svn[0];
     let tdx_module_version = tee_tcb_svn[1];
 
     if tdx_module_version == 0 {
         // we assume the quote header version is greater than 3
-        let mut mrsigner: [u8; 48] = [0; 48];
-        mrsigner.copy_from_slice(&hex::decode(&tdx_module.mrsigner)?);
-
         return Ok((
             TdxModuleTcbValidationStatus::Ok,
             Default::default(),
-            mrsigner,
-            from_str_to_u64(tdx_module.attributes.as_str())?,
+            tdx_module.mrsigner()?,
+            tdx_module.attributes()?,
         ));
     }
 
-    let id = format!("TDX_{:02x}", tdx_module_version);
+    let tdx_module_identity_id = format!("TDX_{:02x}", tdx_module_version);
     if let Some(tdx_module_identities) = &tcb_info_v3.tcb_info.tdx_module_identities {
-        for tdx_module_identity in tdx_module_identities.iter().filter(|m| m.id == id) {
+        for tdx_module_identity in tdx_module_identities
+            .iter()
+            .filter(|m| m.id == tdx_module_identity_id)
+        {
             for tcb_level in &tdx_module_identity.tcb_levels {
                 if tdx_module_isv_svn >= tcb_level.tcb.isvsvn {
-                    let mut mrsigner: [u8; 48] = [0; 48];
-                    mrsigner.copy_from_slice(&hex::decode(&tdx_module_identity.mrsigner)?);
                     return Ok((
                         TdxModuleTcbStatus::from_str(tcb_level.tcb_status.as_str())?.into(),
                         tcb_level.advisory_ids.clone().unwrap_or_default(),
-                        mrsigner,
-                        from_str_to_u64(tdx_module_identity.attributes.as_str())?,
+                        tdx_module_identity.mrsigner()?,
+                        tdx_module_identity.attributes()?,
                     ));
                 }
             }
@@ -63,7 +68,8 @@ pub fn get_tdx_module_identity_and_tcb(
     }
 }
 
-// https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L99-L137
+/// Converge TCB status with TDX module TCB status
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L99-L137>
 pub fn converge_tcb_status_with_tdx_module_tcb(
     tcb_status: TcbInfoV3TcbStatus,
     tdx_module_tcb_status: TdxModuleTcbValidationStatus,
@@ -81,16 +87,5 @@ pub fn converge_tcb_status_with_tdx_module_tcb(
         },
         TdxModuleTcbValidationStatus::TcbRevoked => TcbInfoV3TcbStatus::Revoked,
         _ => tcb_status,
-    }
-}
-
-fn from_str_to_u64(str: &str) -> Result<u64> {
-    if str.len() != 16 {
-        bail!("Invalid u64 str length");
-    }
-
-    match u64::from_str_radix(str, 16) {
-        Ok(ret) => Ok(ret),
-        Err(_) => bail!("Invalid hex character found"),
     }
 }

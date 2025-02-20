@@ -75,30 +75,38 @@ pub fn get_x509_issuer_cn(cert: &X509Certificate) -> String {
     cn.as_str().unwrap().to_string()
 }
 
+/// Get the TCB status of the SGX and TDX corresponding to the given SVN from the TCB Info V3.
+/// This function returns the TCB status of the SGX and TDX, and the advisory IDs.
 /// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L129-L181>
-pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
+///
+/// # Arguments
+/// * `tee_type` - The type of TEE (SGX or TDX)
+/// * `tee_tcb_svn` - The TCB SVN of the TEE (only for TDX)
+/// * `sgx_extensions` - The SGX Extensions from the PCK Certificate
+/// * `tcbinfov3` - The TCB Info V3
+/// # Returns
+/// * `(sgx_tcb_status, tdx_tcb_status, advisory_ids)` - The TCB status of the SGX and TDX, and the advisory IDs
+pub fn get_sgx_tdx_tcb_status_v3(
     tee_type: u32,
     tee_tcb_svn: Option<[u8; 16]>,
-    // SGX Extensions from the PCK Certificate
     sgx_extensions: &SgxExtensions,
     tcbinfov3: &TcbInfoV3,
 ) -> crate::Result<(TcbInfoV3TcbStatus, Option<TcbInfoV3TcbStatus>, Vec<String>)> {
-    let is_tdx = tee_type == TDX_TEE_TYPE && tcbinfov3.tcb_info.id == "TDX";
-    if !is_tdx {
-        // check if tee_type and tcb_info.id are consistent
-        assert!(tee_type == SGX_TEE_TYPE && tcbinfov3.tcb_info.id == "SGX");
-    }
-
-    let is_tdx = if tee_type == SGX_TEE_TYPE {
-        false
+    if tee_type == SGX_TEE_TYPE {
+        if tcbinfov3.tcb_info.id != "SGX" {
+            bail!("Invalid TCB Info ID for SGX TEE Type");
+        } else if tee_tcb_svn.is_some() {
+            bail!("SGX TCB SVN is not needed");
+        }
     } else if tee_type == TDX_TEE_TYPE {
-        if tee_tcb_svn.is_none() {
+        if tcbinfov3.tcb_info.id != "TDX" {
+            bail!("Invalid TCB Info ID for TDX TEE Type");
+        } else if tee_tcb_svn.is_none() {
             bail!("TDX TCB SVN is missing");
         }
-        true
     } else {
         bail!("Unsupported TEE type: {}", tee_type);
-    };
+    }
 
     // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L117
     if sgx_extensions.fmspc != tcbinfov3.tcb_info.fmspc()? {
@@ -125,7 +133,7 @@ pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
             && extension_pcesvn >= tcb_level.tcb.pcesvn
         {
             sgx_tcb_status = Some(TcbInfoV3TcbStatus::from_str(tcb_level.tcb_status.as_str())?);
-            if !is_tdx {
+            if tee_type == SGX_TEE_TYPE {
                 return Ok((
                     sgx_tcb_status.unwrap(),
                     None,
@@ -133,7 +141,8 @@ pub fn get_sgx_tdx_fmspc_tcbstatus_v3(
                 ));
             }
         }
-        if is_tdx && sgx_tcb_status.is_some() {
+
+        if tee_type == TDX_TEE_TYPE && sgx_tcb_status.is_some() {
             let tdxtcbcomponents = match &tcb_level.tcb.tdxtcbcomponents {
                 Some(cmps) => cmps,
                 None => bail!("TDX TCB Components are missing"),
