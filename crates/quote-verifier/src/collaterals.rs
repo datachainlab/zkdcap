@@ -6,36 +6,34 @@ use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevo
 
 use crate::Result;
 
-/**
- * IntelCollateral is a struct that holds the collateral data that is required to verify the
- * authenticity of the quote. This includes the TCBInfo, QEIdentity, certificates and CRLs.
- */
+/// IntelCollateral is a struct that holds the collateral data that is required to verify the
+/// authenticity of the quote. This includes the TCBInfo, QEIdentity, certificates and CRLs.
 #[derive(Clone, Debug, Default)]
 pub struct IntelCollateral {
     /// TCBInfo in JSON format
-    /// ref. https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-model-v3
+    /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-model-v3>
     pub tcbinfo_bytes: Vec<u8>,
     /// QEIdentity in JSON format
-    /// ref. https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-enclave-identity-model-v2
+    /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-enclave-identity-model-v2>
     pub qeidentity_bytes: Vec<u8>,
     /// SGX Intel Root CA certificate in DER format
-    /// ref. https://certificates.trustedservices.intel.com/Intel_SGX_Provisioning_Certification_RootCA.pem
+    /// ref. <https://certificates.trustedservices.intel.com/Intel_SGX_Provisioning_Certification_RootCA.pem>
     pub sgx_intel_root_ca_der: Vec<u8>,
     /// SGX TCB Signing certificate in DER format
     /// You can get this from the response header of the TCBInfo API
-    /// ref. https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-v4
+    /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-v4>
     pub sgx_tcb_signing_der: Vec<u8>,
     /// SGX Intel Root CA CRL in DER format
-    /// ref. https://certificates.trustedservices.intel.com/IntelSGXRootCA.der
+    /// ref. <https://certificates.trustedservices.intel.com/IntelSGXRootCA.der>
     pub sgx_intel_root_ca_crl_der: Vec<u8>,
     /// SGX PCK Platform/Processor CA CRL in DER format
     /// NOTE: This CRL issuer must be matched with the quote's PCK cert issuer
-    /// ref. https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-revocation-v4
+    /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-revocation-v4>
     pub sgx_pck_crl_der: Vec<u8>,
 }
 
 impl IntelCollateral {
-    /// Serializes the IntelCollateral struct into a Vec<u8>
+    /// Serializes the IntelCollateral struct into a `Vec<u8>`
     pub fn to_bytes(&self) -> Vec<u8> {
         // serialization scheme is simple: the bytestream is made of 2 parts
         // the first contains a u32 length for each of the members

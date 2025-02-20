@@ -9,45 +9,32 @@ pub mod quotes;
 pub mod tcbinfo;
 pub mod utils;
 
+// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
 pub const SGX_TEE_TYPE: u32 = 0x00000000;
+// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
 pub const TDX_TEE_TYPE: u32 = 0x00000081;
 
+/// ref. p.68 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
 pub const ECDSA_256_WITH_P256_CURVE: u16 = 2;
-
-pub const HEADER_LEN: usize = 48;
-
-pub const ENCLAVE_REPORT_LEN: usize = 384;
-pub const TD10_REPORT_LEN: usize = 584;
-pub const TD15_REPORT_LEN: usize = 684;
-
+/// ref. p.68 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
 pub const INTEL_QE_VENDOR_ID: [u8; 16] = [
     0x93, 0x9A, 0x72, 0x33, 0xF7, 0x9C, 0x4C, 0xA9, 0x94, 0x0A, 0x0D, 0xB3, 0x95, 0x7F, 0x06, 0x07,
 ];
+/// ref. p.69 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
+pub const ENCLAVE_REPORT_LEN: usize = 384;
+/// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
+pub const TD10_REPORT_LEN: usize = 584;
 
 pub(crate) type Result<T> = core::result::Result<T, anyhow::Error>;
 
-/*
-tcbStatus:
-    type: string
-    enum:
-        - UpToDate
-        - OutOfDate
-        - Revoked
-    description: >-
-        TCB level status. One of the following values:
-
-        "UpToDate" - TCB level of the SGX platform is up-to-date.
-
-        "OutOfDate" - TCB level of SGX platform is outdated.
-
-        "Revoked" - TCB level of SGX platform is revoked.
-        The platform is not trustworthy.
- */
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EnclaveIdentityV2TcbStatus {
-    UpToDate,  // equivalent to STATUS_OK
-    OutOfDate, // equivalent to STATUS_SGX_ENCLAVE_REPORT_ISVSVN_OUT_OF_DATE
-    Revoked,   // equivalent to STATUS_SGX_ENCLAVE_REPORT_ISVSVN_REVOKED
+    /// TCB level of the SGX platform is up-to-date.
+    UpToDate,
+    /// TCB level of SGX platform is outdated.
+    OutOfDate,
+    /// TCB level of SGX platform is revoked. The platform is not trustworthy.
+    Revoked,
 }
 
 impl FromStr for EnclaveIdentityV2TcbStatus {
@@ -63,54 +50,21 @@ impl FromStr for EnclaveIdentityV2TcbStatus {
     }
 }
 
-/*
-// TcbInfoV3
-tcbStatus:
-    type: string
-    enum:
-        - UpToDate
-        - SWHardeningNeeded
-        - ConfigurationNeeded
-        - ConfigurationAndSWHardeningNeeded
-        - OutOfDate
-        - OutOfDateConfigurationNeeded
-        - Revoked
-    description: >-
-        TCB level status. One of the following values:
-
-        "UpToDate" - TCB level of the SGX platform is up-to-date.
-
-        "SWHardeningNeeded" - TCB level of the SGX platform
-        is up-to-date but due to certain issues affecting the
-        platform, additional SW Hardening in the attesting
-        SGX enclaves may be needed.
-
-        "ConfigurationNeeded" - TCB level of the SGX platform
-        is up-to-date but additional configuration of SGX
-        platform may be needed.
-
-        "ConfigurationAndSWHardeningNeeded" - TCB level of the
-        SGX platform is up-to-date but additional configuration
-        for the platform and SW Hardening in the attesting SGX
-        enclaves may be needed.
-
-        "OutOfDate" - TCB level of SGX platform is outdated.
-
-        "OutOfDateConfigurationNeeded" - TCB level of SGX
-        platform is outdated and additional configuration
-        of SGX platform may be needed.
-
-        "Revoked" - TCB level of SGX platform is revoked.
-        The platform is not trustworthy.
- */
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TcbInfoV3TcbStatus {
+    /// TCB level of the SGX platform is up-to-date.
     UpToDate,
+    /// TCB level of the SGX platform is up-to-date but due to certain issues affecting the platform, additional SW Hardening in the attesting SGX enclaves may be needed.
     SWHardeningNeeded,
+    /// TCB level of the SGX platform is up-to-date but additional configuration of SGX platform may be needed.
     ConfigurationNeeded,
+    /// TCB level of the SGX platform is up-to-date but additional configuration for the platform and SW Hardening in the attesting SGX enclaves may be needed.
     ConfigurationAndSWHardeningNeeded,
+    /// TCB level of SGX platform is outdated.
     OutOfDate,
+    /// TCB level of SGX platform is outdated and additional configuration of SGX platform may be needed.
     OutOfDateConfigurationNeeded,
+    /// TCB level of SGX platform is revoked. The platform is not trustworthy.
     Revoked,
 }
 
@@ -131,27 +85,14 @@ impl FromStr for TcbInfoV3TcbStatus {
     }
 }
 
-/*
-tcbStatus:
-    type: string
-    enum:
-        - UpToDate
-        - OutOfDate
-        - Revoked
-    description: >-
-        TCB level status. One of the following values:
-
-        "UpToDate" - TCB level of the TDX SEAM Module is up-to-date.
-
-        "OutOfDate" - TCB level of TDX SEAM Module is outdated.
-
-        "Revoked" - TCB level of TDX SEAM Module is revoked.
-        The platform is not trustworthy.
-*/
+/// TCB level status of TDX SEAM Module
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TdxModuleTcbStatus {
+    /// TCB level of the TDX SEAM Module is up-to-date.
     UpToDate,
+    /// TCB level of TDX SEAM Module is outdated.
     OutOfDate,
+    /// TCB level of TDX SEAM Module is revoked. The platform is not trustworthy.
     Revoked,
 }
 
@@ -190,7 +131,8 @@ pub enum TdxModuleTcbValidationStatus {
     TcbUnrecognizedStatus,
 }
 
-/// ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/10176d4833d72d34f287d00a27c63d757a3c1f99/Src/AttestationLibrary/include/SgxEcdsaAttestation/QuoteVerification.h#L66
+/// Status for quote verification result
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/10176d4833d72d34f287d00a27c63d757a3c1f99/Src/AttestationLibrary/include/SgxEcdsaAttestation/QuoteVerification.h#L66>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Status {
@@ -204,10 +146,12 @@ pub enum Status {
 }
 
 impl Status {
+    /// Convert the status to u8
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }
 
+    /// Convert u8 to Status
     pub fn from_u8(u: u8) -> Result<Self> {
         Ok(match u {
             0 => Status::Ok,
