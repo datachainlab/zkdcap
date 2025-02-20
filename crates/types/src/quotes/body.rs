@@ -154,20 +154,20 @@ pub struct TD10ReportBody {
     /// Must be zero for TDX 1.0 [8 bytes]
     pub td_attributes: u64,
     /// TD Attributes [8 bytes]
-    /// [0:7]    : (TUD) TD Under Debug flags.
+    /// \[0:7\]    : (TUD) TD Under Debug flags.
     ///            If any of the bits in this group are set to 1, the TD is untrusted.
-    ///            [0]     - (DEBUG) Defines whether the TD runs in TD debug mode (set to 1) or not (set to 0).
+    ///            \[0\]     - (DEBUG) Defines whether the TD runs in TD debug mode (set to 1) or not (set to 0).
     ///                      In TD debug mode, the CPU state and private memory are accessible by the host VMM.
-    ///            [1:7]   - (RESERVED) Reserved for future TUD flags, must be 0.
-    /// [8:31]   : (SEC) Attributes that may impact the security of the TD
-    ///            [8:27]  - (RESERVED) Reserved for future SEC flags, must be 0.
-    ///            [28]    - (SEPT_VE_DISABLE) Disable EPT violation conversion to #VE on TD access of PENDING pages
-    ///            [29]    - (RESERVED) Reserved for future SEC flags, must be 0.
-    ///            [30]    - (PKS) TD is allowed to use Supervisor Protection Keys.
-    ///            [31]    - (KL) TD is allowed to use Key Locker.
-    /// [32:63]  : (OTHER) Attributes that do not impact the security of the TD
-    ///            [32:62] - (RESERVED) Reserved for future OTHER flags, must be 0.
-    ///            [63]    - (PERFMON) TD is allowed to use Perfmon and PERF_METRICS capabilities.
+    ///            \[1:7\]   - (RESERVED) Reserved for future TUD flags, must be 0.
+    /// \[8:31]   : (SEC) Attributes that may impact the security of the TD
+    ///            \[8:27\]  - (RESERVED) Reserved for future SEC flags, must be 0.
+    ///            \[28\]    - (SEPT_VE_DISABLE) Disable EPT violation conversion to #VE on TD access of PENDING pages
+    ///            \[29\]    - (RESERVED) Reserved for future SEC flags, must be 0.
+    ///            \[30\]    - (PKS) TD is allowed to use Supervisor Protection Keys.
+    ///            \[31\]    - (KL) TD is allowed to use Key Locker.
+    /// \[32:63]  : (OTHER) Attributes that do not impact the security of the TD
+    ///            \[32:62\] - (RESERVED) Reserved for future OTHER flags, must be 0.
+    ///            \[63\]    - (PERFMON) TD is allowed to use Perfmon and PERF_METRICS capabilities.
     pub xfam: u64,
     /// (SHA384) Measurement of the initial contents of the TD. [48 bytes]
     pub mrtd: [u8; 48],

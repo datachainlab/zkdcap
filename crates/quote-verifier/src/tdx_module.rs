@@ -8,7 +8,7 @@ use std::str::FromStr;
 /// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L62-L97>
 ///
 /// # Arguments
-/// - `tee_tcb_svn`: The SVN of the TEE TCB extracted from the `TD10ReportBody::tee_tcb_svn`
+/// - `tee_tcb_svn`: The SVN of the TEE TCB extracted from the `TD10ReportBody`
 /// - `tcb_info_v3`: The TDX TCB Info V3
 /// # Returns
 /// - The TCB status of the TDX module

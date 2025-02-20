@@ -7,8 +7,8 @@ use sha3::Keccak256;
 /// using the provided data, signature, and public key.
 /// # Arguments
 /// * `data` - The data that was signed.
-/// * `signature` - The signature is the signature (in raw form [r][s]) of the data as a byte slice. (64 bytes)
-/// * `public_key` - The public key (in uncompressed form [4][x][y]) of the entity that signed the data. (65 bytes)
+/// * `signature` - The signature is the signature (in raw form \[r\]\[s\]) of the data as a byte slice. (64 bytes)
+/// * `public_key` - The public key (in uncompressed form \[4\]\[\x\]\[y\]) of the entity that signed the data. (65 bytes)
 /// # Returns
 /// * Returns true if the signature is valid, false otherwise.
 pub fn verify_p256_signature_bytes(data: &[u8], signature: &[u8], public_key: &[u8]) -> Result<()> {
@@ -22,7 +22,7 @@ pub fn verify_p256_signature_bytes(data: &[u8], signature: &[u8], public_key: &[
 /// # Arguments
 /// * `data` - The data that was signed.
 /// * `signature_der` - The der encoded signature of the data as a byte slice.
-/// * `public_key` - The public key (in uncompressed form [4][x][y]) of the entity that signed the data. (65 bytes)
+/// * `public_key` - The public key (in uncompressed form \[4\]\[\x\]\[y\]) of the entity that signed the data. (65 bytes)
 /// # Returns
 /// * Returns true if the signature is valid, false otherwise.
 pub fn verify_p256_signature_der(
