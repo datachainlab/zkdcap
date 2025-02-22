@@ -2,7 +2,7 @@ use super::{body::*, CertData, QuoteHeader};
 use crate::{Result, ENCLAVE_REPORT_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN, TDX_TEE_TYPE};
 use anyhow::bail;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuoteV4 {
     /// Header of Quote data structure.
     /// This field is transparent (the user knows its internal structure).
@@ -20,6 +20,9 @@ impl QuoteV4 {
     /// Parse a byte slice into a `QuoteV4` structure.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
         let header = QuoteHeader::from_bytes(&raw_bytes[0..48])?;
+        if header.version != 4 {
+            bail!("Invalid Quote version");
+        }
         let quote_body;
         let mut offset: usize = 48;
         match header.tee_type {
@@ -54,9 +57,26 @@ impl QuoteV4 {
             signature,
         })
     }
+
+    /// Serialize the `QuoteV4` structure to bytes.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut output_vec = Vec::new();
+        output_vec.extend_from_slice(&self.header.to_bytes());
+        match &self.quote_body {
+            QuoteBody::SGXQuoteBody(body) => {
+                output_vec.extend_from_slice(&body.to_bytes());
+            }
+            QuoteBody::TD10QuoteBody(body) => {
+                output_vec.extend_from_slice(&body.to_bytes());
+            }
+        }
+        output_vec.extend_from_slice(&self.signature_len.to_le_bytes());
+        output_vec.extend_from_slice(&self.signature.to_bytes());
+        output_vec
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuoteSignatureDataV4 {
     /// ECDSA signature, the r component followed by the s component, 2 x 32 bytes.
     pub quote_signature: [u8; 64],
@@ -84,5 +104,14 @@ impl QuoteSignatureDataV4 {
             ecdsa_attestation_key,
             qe_cert_data,
         })
+    }
+
+    /// Serialize the `QuoteSignatureDataV4` structure to bytes.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut output_vec = Vec::new();
+        output_vec.extend_from_slice(&self.quote_signature);
+        output_vec.extend_from_slice(&self.ecdsa_attestation_key);
+        output_vec.extend_from_slice(&self.qe_cert_data.to_bytes());
+        output_vec
     }
 }

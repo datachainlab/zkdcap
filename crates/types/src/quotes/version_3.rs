@@ -33,6 +33,9 @@ impl QuoteV3 {
             return Err(anyhow!("QuoteV3 data is too short"));
         }
         let header = QuoteHeader::from_bytes(&raw_bytes[0..48])?;
+        if header.version != 3 {
+            return Err(anyhow!("QuoteV3 version is not 3"));
+        }
         let isv_enclave_report = EnclaveReport::from_bytes(&raw_bytes[48..432])?;
         let signature_len = u32::from_le_bytes([
             raw_bytes[432],
@@ -65,13 +68,7 @@ impl QuoteV3 {
         raw_bytes.extend_from_slice(&self.header.to_bytes());
         raw_bytes.extend_from_slice(&self.isv_enclave_report.to_bytes());
         raw_bytes.extend_from_slice(&self.signature_len.to_le_bytes());
-        raw_bytes.extend_from_slice(&self.signature.isv_enclave_report_signature);
-        raw_bytes.extend_from_slice(&self.signature.ecdsa_attestation_key);
-        raw_bytes.extend_from_slice(&self.signature.qe_report.to_bytes());
-        raw_bytes.extend_from_slice(&self.signature.qe_report_signature);
-        raw_bytes.extend_from_slice(&self.signature.qe_auth_data.to_bytes());
-        raw_bytes.extend_from_slice(&self.signature.qe_cert_data.to_bytes());
-
+        raw_bytes.extend_from_slice(&self.signature.to_bytes());
         raw_bytes
     }
 }
@@ -136,6 +133,7 @@ mod tests {
     use crate::quotes::{
         body::tests::enclave_report_strategy,
         tests::{cert_data_strategy, qe_auth_data_strategy, quote_header_strategy},
+        Quote,
     };
     use proptest::{collection::vec, prelude::*};
 
@@ -147,6 +145,11 @@ mod tests {
         let quote = QuoteV3::from_bytes(&raw_bytes).unwrap();
         let serialized_quote = quote.to_bytes();
         assert_eq!(raw_bytes.to_vec(), serialized_quote);
+
+        let quote = Quote::from_bytes(&raw_bytes).unwrap();
+        let serialized_quote2 = quote.to_bytes();
+        assert_eq!(raw_bytes.to_vec(), serialized_quote2);
+        assert_eq!(serialized_quote, serialized_quote2);
     }
 
     proptest! {
@@ -161,13 +164,17 @@ mod tests {
         fn test_quote_v3_roundtrip(quote_v3 in quote_v3_strategy()) {
             let raw_bytes = quote_v3.to_bytes();
             let parsed_quote_v3 = QuoteV3::from_bytes(&raw_bytes).unwrap();
-            prop_assert_eq!(quote_v3, parsed_quote_v3);
+            prop_assert_eq!(&quote_v3, &parsed_quote_v3);
+            let quote = Quote::from_bytes(&raw_bytes).unwrap();
+            prop_assert_eq!(&quote, &Quote::V3(quote_v3));
+            let serialized_quote = quote.to_bytes();
+            prop_assert_eq!(raw_bytes, serialized_quote);
         }
     }
 
     pub(crate) fn quote_v3_strategy() -> impl Strategy<Value = QuoteV3> {
         (
-            quote_header_strategy(),
+            quote_header_strategy(Some(3)),
             enclave_report_strategy(),
             quote_signature_data_v3_strategy(),
         )

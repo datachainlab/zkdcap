@@ -12,11 +12,12 @@ use crate::pck::validate_pck_cert;
 use crate::sgx_extensions::extract_sgx_extensions;
 use crate::tcbinfo::validate_tcb_signing_certificate;
 use crate::tcbinfo::validate_tcbinfov3;
-use crate::verifier::ValidityIntersection;
+use crate::verifier::{QuoteVerificationOutput, ValidityIntersection};
 use crate::Result;
 use anyhow::{bail, Context};
 use dcap_types::cert::SgxExtensions;
 use dcap_types::enclave_identity::EnclaveIdentityV2;
+use dcap_types::quotes::Quote;
 use dcap_types::quotes::{
     body::{EnclaveReport, QuoteBody},
     CertData, QuoteHeader,
@@ -25,7 +26,28 @@ use dcap_types::tcbinfo::TcbInfo;
 use dcap_types::utils::parse_pem;
 use dcap_types::{EnclaveIdentityV2TcbStatus, Status, TcbInfoV3TcbStatus};
 use dcap_types::{ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID};
+use version_3::verify_quote_v3;
+use version_4::verify_quote_v4;
 use x509_parser::certificate::X509Certificate;
+
+/// Verify the quote with the given collateral data and return the verification output.
+/// The quote version is determined by the quote header.
+/// The verification process is different for each quote version.
+///
+/// # Arguments
+/// * `quote` - The quote to be verified.
+/// * `collateral` - The collateral data to be used for verification.
+/// * `current_time` - The current time in seconds since the Unix epoch.
+pub fn verify_quote(
+    quote: &Quote,
+    collateral: &IntelCollateral,
+    current_time: u64,
+) -> Result<QuoteVerificationOutput> {
+    match quote {
+        Quote::V3(quote) => verify_quote_v3(quote, collateral, current_time),
+        Quote::V4(quote) => verify_quote_v4(quote, collateral, current_time),
+    }
+}
 
 /// The TCB info of the QE
 #[derive(Debug, Clone, PartialEq, Eq)]

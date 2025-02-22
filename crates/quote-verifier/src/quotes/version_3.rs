@@ -63,6 +63,7 @@ pub fn verify_quote_v3(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::quotes::verify_quote;
     use dcap_collaterals::{
         certs::{gen_pck_certchain, gen_root_ca, gen_tcb_certchain, PckCa},
         enclave_identity::{EnclaveIdentityId, EnclaveIdentityV2Builder},
@@ -177,5 +178,8 @@ mod tests {
         assert!(res.is_ok(), "{:?}", res);
         let output = res.unwrap();
         assert_eq!(output.min_tcb_evaluation_data_number, 1);
+
+        let res = verify_quote(&quote.into(), &collateral, current_time);
+        assert!(res.is_ok(), "{:?}", res);
     }
 }
