@@ -1,5 +1,5 @@
 [package]
-name = "dcap-types"
+name    = "dcap-types"
 license = "Apache-2.0"
 version = "0.1.0"
 edition = "2021"
@@ -8,11 +8,11 @@ edition = "2021"
 crate-type = ["lib"]
 
 [dependencies]
-x509-parser  	= { version = "0.15.1" }
-serde        	= { version = "1.0", features = ["derive"] }
-chrono       	= { version = "0.4" }
-anyhow       	= { version = "1" }
-hex             = { version = "0.4" }
+x509-parser = { version = "0.17.0" }
+serde       = { version = "1.0", features = ["derive"] }
+chrono      = { version = "0.4" }
+anyhow      = { version = "1" }
+hex         = { version = "0.4" }
 
 [features]
 default = []

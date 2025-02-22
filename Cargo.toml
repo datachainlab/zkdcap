@@ -1,12 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/types",
-    "crates/quote-verifier",
-    "crates/pcs",
-    "crates/collaterals",
+  "crates/types",
+  "crates/quote-verifier",
+  "crates/pcs",
+  "crates/collaterals",
 ]
-exclude = [
-    "zkvm/risc0",
-    "zkvm/risc0/guest",
-]
+exclude = ["zkvm/risc0", "zkvm/risc0/guest"]

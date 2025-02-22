@@ -1,22 +1,20 @@
 [package]
-name = "dcap-collaterals"
+name    = "dcap-collaterals"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1"
-hex = "0.4"
-x509-parser = "0.15.1"
-der = { version = "0.7", features = ["alloc", "derive"] }
-chrono = { version = "0.4" }
-serde_json = { version = "1", features = ["preserve_order"] }
+anyhow      = "1"
+hex         = "0.4"
+x509-parser = { version = "0.17.0" }
+der         = { version = "0.7", features = ["alloc", "derive"] }
+chrono      = { version = "0.4" }
+serde_json  = { version = "1", features = ["preserve_order"] }
 
 openssl = { git = "https://github.com/datachainlab/rust-openssl", rev = "6fdf2f32721719d173bf909c97e982fe4e2e2819" }
 
 dcap-types = { path = "../types" }
 
 [features]
-default = []
-openssl-vendored = [
-  "openssl/vendored"
-]
+default          = []
+openssl-vendored = ["openssl/vendored"]
