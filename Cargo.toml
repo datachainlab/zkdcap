@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/types",
     "crates/quote-verifier",
+    "crates/pcs",
     "crates/collaterals",
 ]
 exclude = [
