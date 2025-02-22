@@ -1,5 +1,5 @@
 [package]
-name = "zkdcap-risc0"
+name    = "zkdcap-risc0"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,12 +10,12 @@ methods = ["guest"]
 risc0-zkvm = { version = "=1.2.2", default-features = false, optional = true }
 
 [build-dependencies]
-risc0-build = { version = "=1.2.2", features = ["docker", "unstable"] }
+risc0-build  = { version = "=1.2.2", features = ["docker", "unstable"] }
 risc0-binfmt = { version = "=1.2.2", default-features = false }
 
 [dev-dependencies]
-risc0-zkvm = { version = "=1.2.2", default-features = false, features = ["prove"] }
-hex = { version = "0.4", default-features = false, features = ["alloc"] }
+risc0-zkvm          = { version = "=1.2.2", default-features = false, features = ["prove"] }
+hex                 = { version = "0.4", default-features = false, features = ["alloc"] }
 dcap-quote-verifier = { path = "../../crates/quote-verifier" }
 
 [features]
