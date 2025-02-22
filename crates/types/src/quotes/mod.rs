@@ -33,7 +33,10 @@ pub struct QuoteHeader {
 
 impl QuoteHeader {
     /// Parse a QuoteHeader from a byte slice.
-    pub fn from_bytes(raw_bytes: &[u8]) -> Self {
+    pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
+        if raw_bytes.len() < 48 {
+            return Err(anyhow::anyhow!("QuoteHeader is too short"));
+        }
         let version = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let att_key_type = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
         let tee_type = u32::from_le_bytes([raw_bytes[4], raw_bytes[5], raw_bytes[6], raw_bytes[7]]);
@@ -46,7 +49,7 @@ impl QuoteHeader {
         let mut user_data = [0; 20];
         user_data.copy_from_slice(&raw_bytes[28..48]);
 
-        QuoteHeader {
+        Ok(QuoteHeader {
             version,
             att_key_type,
             tee_type,
@@ -54,7 +57,7 @@ impl QuoteHeader {
             pce_svn,
             qe_vendor_id,
             user_data,
-        }
+        })
     }
 
     /// Serialize a QuoteHeader to a byte array.
@@ -86,10 +89,17 @@ pub struct QeAuthData {
 
 impl QeAuthData {
     /// Parse a QeAuthData from a byte slice.
-    pub fn from_bytes(raw_bytes: &[u8]) -> QeAuthData {
+    pub fn from_bytes(raw_bytes: &[u8]) -> Result<QeAuthData> {
+        let len = raw_bytes.len();
+        if len < 2 {
+            return Err(anyhow::anyhow!("QeAuthData is too short"));
+        }
         let size = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
+        if len < 2 + size as usize {
+            return Err(anyhow::anyhow!("QeAuthData is too short"));
+        }
         let data = raw_bytes[2..2 + size as usize].to_vec();
-        QeAuthData { size, data }
+        Ok(QeAuthData { size, data })
     }
 
     /// Serialize a QeAuthData to a byte vector.
@@ -130,17 +140,23 @@ pub struct CertData {
 
 impl CertData {
     /// Parse a CertData from a byte slice.
-    pub fn from_bytes(raw_bytes: &[u8]) -> Self {
+    pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
+        let len = raw_bytes.len();
+        if len < 6 {
+            return Err(anyhow::anyhow!("CertData is too short"));
+        }
         let cert_data_type = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let cert_data_size =
             u32::from_le_bytes([raw_bytes[2], raw_bytes[3], raw_bytes[4], raw_bytes[5]]);
+        if len < 6 + cert_data_size as usize {
+            return Err(anyhow::anyhow!("CertData is too short"));
+        }
         let cert_data = raw_bytes[6..6 + cert_data_size as usize].to_vec();
-
-        CertData {
+        Ok(CertData {
             cert_data_type,
             cert_data_size,
             cert_data,
-        }
+        })
     }
 
     /// Serialize a CertData to a byte vector.
@@ -198,12 +214,12 @@ impl QeReportCertData {
         let mut qe_report_signature = [0; 64];
         qe_report_signature.copy_from_slice(&raw_bytes[384..448]);
         // qe auth data is variable length, we'll pass remaining bytes to the from_bytes method
-        let qe_auth_data = QeAuthData::from_bytes(&raw_bytes[448..]);
+        let qe_auth_data = QeAuthData::from_bytes(&raw_bytes[448..])?;
         // get the length of qe_auth_data
         let qe_auth_data_size = 2 + qe_auth_data.size as usize;
         // finish off with the parsing of qe_cert_data
         let qe_cert_data_start = 448 + qe_auth_data_size;
-        let qe_cert_data = CertData::from_bytes(&raw_bytes[qe_cert_data_start..]);
+        let qe_cert_data = CertData::from_bytes(&raw_bytes[qe_cert_data_start..])?;
 
         Ok(QeReportCertData {
             qe_report,
@@ -259,7 +275,7 @@ pub(crate) mod tests {
         #[test]
         fn test_quote_header_roundtrip(quote_header in quote_header_strategy()) {
             let raw_bytes = quote_header.to_bytes();
-            let parsed_quote_header = QuoteHeader::from_bytes(&raw_bytes);
+            let parsed_quote_header = QuoteHeader::from_bytes(&raw_bytes).unwrap();
             prop_assert_eq!(quote_header, parsed_quote_header, "raw_bytes: {:?}", raw_bytes);
         }
 
@@ -273,14 +289,14 @@ pub(crate) mod tests {
         #[test]
         fn test_qe_auth_data_roundtrip(qe_auth_data in qe_auth_data_strategy(65535)) {
             let raw_bytes = qe_auth_data.to_bytes();
-            let parsed_qe_auth_data = QeAuthData::from_bytes(&raw_bytes);
+            let parsed_qe_auth_data = QeAuthData::from_bytes(&raw_bytes).unwrap();
             prop_assert_eq!(qe_auth_data, parsed_qe_auth_data, "raw_bytes: {:?}", raw_bytes);
         }
 
         #[test]
         fn test_cert_data_roundtrip(cert_data in cert_data_strategy(65535)) {
             let raw_bytes = cert_data.to_bytes();
-            let parsed_cert_data = CertData::from_bytes(&raw_bytes);
+            let parsed_cert_data = CertData::from_bytes(&raw_bytes).unwrap();
             prop_assert_eq!(cert_data, parsed_cert_data);
         }
     }

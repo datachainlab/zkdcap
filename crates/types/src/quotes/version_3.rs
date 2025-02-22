@@ -32,7 +32,7 @@ impl QuoteV3 {
         if raw_bytes.len() < 436 {
             return Err(anyhow!("QuoteV3 data is too short"));
         }
-        let header = QuoteHeader::from_bytes(&raw_bytes[0..48]);
+        let header = QuoteHeader::from_bytes(&raw_bytes[0..48])?;
         let isv_enclave_report = EnclaveReport::from_bytes(&raw_bytes[48..432])?;
         let signature_len = u32::from_le_bytes([
             raw_bytes[432],
@@ -90,6 +90,10 @@ pub struct QuoteSignatureDataV3 {
 impl QuoteSignatureDataV3 {
     /// Parse a QuoteSignatureDataV3 from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<QuoteSignatureDataV3> {
+        let len = raw_bytes.len();
+        if len < 576 {
+            return Err(anyhow!("QuoteSignatureDataV3 data is too short"));
+        }
         let mut isv_enclave_report_signature = [0u8; 64];
         let mut ecdsa_attestation_key = [0u8; 64];
         let mut qe_report_signature = [0u8; 64];
@@ -98,9 +102,9 @@ impl QuoteSignatureDataV3 {
         ecdsa_attestation_key.copy_from_slice(&raw_bytes[64..128]);
         let qe_report = EnclaveReport::from_bytes(&raw_bytes[128..512])?;
         qe_report_signature.copy_from_slice(&raw_bytes[512..576]);
-        let qe_auth_data = QeAuthData::from_bytes(&raw_bytes[576..]);
+        let qe_auth_data = QeAuthData::from_bytes(&raw_bytes[576..])?;
         let qe_cert_data_start = 576 + 2 + qe_auth_data.size as usize;
-        let qe_cert_data = CertData::from_bytes(&raw_bytes[qe_cert_data_start..]);
+        let qe_cert_data = CertData::from_bytes(&raw_bytes[qe_cert_data_start..])?;
 
         Ok(QuoteSignatureDataV3 {
             isv_enclave_report_signature,

@@ -19,7 +19,7 @@ pub struct QuoteV4 {
 impl QuoteV4 {
     /// Parse a byte slice into a `QuoteV4` structure.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
-        let header = QuoteHeader::from_bytes(&raw_bytes[0..48]);
+        let header = QuoteHeader::from_bytes(&raw_bytes[0..48])?;
         let quote_body;
         let mut offset: usize = 48;
         match header.tee_type {
@@ -45,7 +45,7 @@ impl QuoteV4 {
         ]);
         offset += 4;
         let signature_slice = &raw_bytes[offset..offset + signature_len as usize];
-        let signature = QuoteSignatureDataV4::from_bytes(signature_slice);
+        let signature = QuoteSignatureDataV4::from_bytes(signature_slice)?;
 
         Ok(QuoteV4 {
             header,
@@ -69,17 +69,20 @@ pub struct QuoteSignatureDataV4 {
 
 impl QuoteSignatureDataV4 {
     /// Parse a byte slice into a `QuoteSignatureDataV4` structure.
-    pub fn from_bytes(raw_bytes: &[u8]) -> Self {
+    pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
+        if raw_bytes.len() < 128 {
+            bail!("Invalid QuoteSignatureDataV4 length");
+        }
         let mut quote_signature = [0; 64];
         quote_signature.copy_from_slice(&raw_bytes[0..64]);
         let mut ecdsa_attestation_key = [0; 64];
         ecdsa_attestation_key.copy_from_slice(&raw_bytes[64..128]);
-        let qe_cert_data = CertData::from_bytes(&raw_bytes[128..]);
+        let qe_cert_data = CertData::from_bytes(&raw_bytes[128..])?;
 
-        QuoteSignatureDataV4 {
+        Ok(QuoteSignatureDataV4 {
             quote_signature,
             ecdsa_attestation_key,
             qe_cert_data,
-        }
+        })
     }
 }
