@@ -1,6 +1,6 @@
 use crate::{
     utils::{parse_x509_der_multi, pem_to_der},
-    Result,
+    Result, QUOTE_HEADER_LEN,
 };
 
 pub mod body;
@@ -25,7 +25,7 @@ pub enum Quote {
 impl Quote {
     /// Parse a byte slice into a `Quote` structure.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < 48 {
+        if bytes.len() < QUOTE_HEADER_LEN {
             bail!("Invalid quote length");
         }
         let version = u16::from_le_bytes([bytes[0], bytes[1]]);
@@ -81,8 +81,8 @@ pub struct QuoteHeader {
 impl QuoteHeader {
     /// Parse a QuoteHeader from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
-        if raw_bytes.len() < 48 {
-            return Err(anyhow::anyhow!("QuoteHeader is too short"));
+        if raw_bytes.len() != QUOTE_HEADER_LEN {
+            return Err(anyhow::anyhow!("Invalid QuoteHeader length"));
         }
         let version = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let att_key_type = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
@@ -186,6 +186,16 @@ pub struct CertData {
 }
 
 impl CertData {
+    /// Create a new CertData instance.
+    pub fn new(cert_data_type: u16, cert_data: Vec<u8>) -> Self {
+        let cert_data_size = cert_data.len() as u32;
+        CertData {
+            cert_data_type,
+            cert_data_size,
+            cert_data,
+        }
+    }
+
     /// Parse a CertData from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
         let len = raw_bytes.len();
@@ -322,7 +332,7 @@ pub(crate) mod tests {
 
     proptest! {
         #[test]
-        fn test_quote_header_roundtrip(quote_header in quote_header_strategy(None)) {
+        fn test_quote_header_roundtrip(quote_header in quote_header_strategy(None, None)) {
             let raw_bytes = quote_header.to_bytes();
             let parsed_quote_header = QuoteHeader::from_bytes(&raw_bytes).unwrap();
             prop_assert_eq!(quote_header, parsed_quote_header, "raw_bytes: {:?}", raw_bytes);
@@ -352,6 +362,7 @@ pub(crate) mod tests {
 
     pub(crate) fn quote_header_strategy(
         version: Option<u16>,
+        tee_type: Option<u32>,
     ) -> impl Strategy<Value = QuoteHeader> {
         (
             any::<u16>(),
@@ -366,7 +377,7 @@ pub(crate) mod tests {
                 move |(
                     version_,
                     att_key_type,
-                    tee_type,
+                    tee_type_,
                     qe_svn,
                     pce_svn,
                     qe_vendor_id,
@@ -375,7 +386,7 @@ pub(crate) mod tests {
                     QuoteHeader {
                         version: version.unwrap_or(version_),
                         att_key_type,
-                        tee_type,
+                        tee_type: tee_type.unwrap_or(tee_type_),
                         qe_svn,
                         pce_svn,
                         qe_vendor_id,

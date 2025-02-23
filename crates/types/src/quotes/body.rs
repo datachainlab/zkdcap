@@ -1,6 +1,6 @@
 use anyhow::bail;
 
-use crate::Result;
+use crate::{Result, ENCLAVE_REPORT_LEN};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum QuoteBody {
@@ -59,7 +59,7 @@ pub struct EnclaveReport {
 impl EnclaveReport {
     /// Parse raw bytes into EnclaveReport
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<EnclaveReport> {
-        if raw_bytes.len() != 384 {
+        if raw_bytes.len() != ENCLAVE_REPORT_LEN {
             bail!("Invalid length of bytes for EnclaveReport");
         }
         let mut obj = EnclaveReport {
@@ -341,7 +341,7 @@ pub(crate) mod tests {
     }
 
     // proptest strategy for EnclaveReport
-    pub fn enclave_report_strategy() -> impl Strategy<Value = EnclaveReport> {
+    pub(crate) fn enclave_report_strategy() -> impl Strategy<Value = EnclaveReport> {
         (
             any::<[u8; 16]>(),
             any::<[u8; 4]>(),
@@ -388,7 +388,7 @@ pub(crate) mod tests {
     }
 
     // proptest strategy for TD10ReportBody
-    fn td10_report_body_strategy() -> impl Strategy<Value = TD10ReportBody> {
+    pub(crate) fn td10_report_body_strategy() -> impl Strategy<Value = TD10ReportBody> {
         (
             (
                 any::<[u8; 16]>(),

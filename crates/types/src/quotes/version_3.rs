@@ -1,6 +1,11 @@
 use super::{body::EnclaveReport, CertData, QeAuthData, QuoteHeader};
-use crate::Result;
-use anyhow::anyhow;
+use crate::{Result, ENCLAVE_REPORT_LEN, QUOTE_HEADER_LEN};
+use anyhow::{anyhow, bail};
+
+const SIGNATURE_DATA_SIZE_OFFSET: usize = QUOTE_HEADER_LEN + ENCLAVE_REPORT_LEN;
+const SIGNATURE_DATA_SIZE_LEN: usize = 4;
+const SIGNATURE_DATA_OFFSET: usize =
+    QUOTE_HEADER_LEN + ENCLAVE_REPORT_LEN + SIGNATURE_DATA_SIZE_LEN;
 
 /// Quote structure for DCAP version 3.
 /// The structure is defined in the Intel SGX ECDSA Quote Library Reference.
@@ -29,30 +34,31 @@ pub struct QuoteV3 {
 impl QuoteV3 {
     /// Parse a QuoteV3 from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<QuoteV3> {
-        if raw_bytes.len() < 436 {
-            return Err(anyhow!("QuoteV3 data is too short"));
+        if raw_bytes.len() < SIGNATURE_DATA_OFFSET {
+            bail!("QuoteV3 data is too short");
         }
-        let header = QuoteHeader::from_bytes(&raw_bytes[0..48])?;
+        let header = QuoteHeader::from_bytes(&raw_bytes[..QUOTE_HEADER_LEN])?;
         if header.version != 3 {
-            return Err(anyhow!("QuoteV3 version is not 3"));
+            bail!("QuoteV3 version is not 3");
         }
-        let isv_enclave_report = EnclaveReport::from_bytes(&raw_bytes[48..432])?;
+        let isv_enclave_report =
+            EnclaveReport::from_bytes(&raw_bytes[QUOTE_HEADER_LEN..SIGNATURE_DATA_SIZE_OFFSET])?;
         let signature_len = u32::from_le_bytes([
-            raw_bytes[432],
-            raw_bytes[433],
-            raw_bytes[434],
-            raw_bytes[435],
+            raw_bytes[SIGNATURE_DATA_SIZE_OFFSET],
+            raw_bytes[SIGNATURE_DATA_SIZE_OFFSET + 1],
+            raw_bytes[SIGNATURE_DATA_SIZE_OFFSET + 2],
+            raw_bytes[SIGNATURE_DATA_SIZE_OFFSET + 3],
         ]);
-        if raw_bytes.len() != 436 + signature_len as usize {
-            return Err(anyhow!(
+        if raw_bytes.len() < SIGNATURE_DATA_OFFSET + signature_len as usize {
+            bail!(
                 "QuoteV3 data is not the expected length: expected {}, got {}",
-                436 + signature_len,
+                SIGNATURE_DATA_OFFSET + signature_len as usize,
                 raw_bytes.len()
-            ));
+            );
         }
-        // allocate and create a buffer for signature
-        let signature_slice = &raw_bytes[436..436 + signature_len as usize];
-        let signature = QuoteSignatureDataV3::from_bytes(signature_slice)?;
+        let signature = QuoteSignatureDataV3::from_bytes(
+            &raw_bytes[SIGNATURE_DATA_OFFSET..SIGNATURE_DATA_OFFSET + signature_len as usize],
+        )?;
 
         Ok(QuoteV3 {
             header,
@@ -130,10 +136,13 @@ impl QuoteSignatureDataV3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quotes::{
-        body::tests::enclave_report_strategy,
-        tests::{cert_data_strategy, qe_auth_data_strategy, quote_header_strategy},
-        Quote,
+    use crate::{
+        quotes::{
+            body::tests::enclave_report_strategy,
+            tests::{cert_data_strategy, qe_auth_data_strategy, quote_header_strategy},
+            Quote,
+        },
+        SGX_TEE_TYPE,
     };
     use proptest::{collection::vec, prelude::*};
 
@@ -174,7 +183,7 @@ mod tests {
 
     pub(crate) fn quote_v3_strategy() -> impl Strategy<Value = QuoteV3> {
         (
-            quote_header_strategy(Some(3)),
+            quote_header_strategy(Some(3), Some(SGX_TEE_TYPE)),
             enclave_report_strategy(),
             quote_signature_data_v3_strategy(),
         )

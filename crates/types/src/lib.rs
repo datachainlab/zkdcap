@@ -20,6 +20,8 @@ pub const ECDSA_256_WITH_P256_CURVE: u16 = 2;
 pub const INTEL_QE_VENDOR_ID: [u8; 16] = [
     0x93, 0x9A, 0x72, 0x33, 0xF7, 0x9C, 0x4C, 0xA9, 0x94, 0x0A, 0x0D, 0xB3, 0x95, 0x7F, 0x06, 0x07,
 ];
+/// ref. p.67 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
+pub const QUOTE_HEADER_LEN: usize = 48;
 /// ref. p.69 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
 pub const ENCLAVE_REPORT_LEN: usize = 384;
 /// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
