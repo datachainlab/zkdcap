@@ -1,10 +1,10 @@
-use super::{converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
+use super::{verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collateral::QvCollateral,
     crypto::keccak256sum,
     tdx_module::{check_tdx_module_tcb_status, converge_tcb_status_with_tdx_module_tcb},
-    verifier::{QuoteVerificationOutput, QV_OUTPUT_VERSION},
+    verifier::{QuoteVerificationOutput, Status, QV_OUTPUT_VERSION},
 };
 use anyhow::{bail, Context};
 use core::cmp::min;
@@ -17,6 +17,8 @@ use dcap_types::{
 
 /// Verify the given DCAP quote v4 and return the verification output.
 ///
+/// Please also refer to the documentation of `verify_quote` for more details.
+///
 /// # Arguments
 /// - `quote`: The quote to be verified
 /// - `collateral`: The collateral data to be used for verification
@@ -28,18 +30,15 @@ pub fn verify_quote_v4(
 ) -> Result<QuoteVerificationOutput> {
     validate_quote_header_v4(&quote.header).context("invalid quote header")?;
 
-    // we'll now proceed to verify the qe
-    let qe_cert_data_v4 = &quote.signature.qe_cert_data;
-
-    // right now we just handle type 6, which contains the QEReport, QEReportSignature, QEAuthData and another CertData
+    // NOTE: we just handle type 6, which contains the QEReport, QEReportSignature, QEAuthData and another CertData whose type is 5
     let qe_report_cert_data = if let CertDataType::QeReportCertData(qe_report_cert_data) =
-        qe_cert_data_v4.get_cert_data()?
+        quote.signature.qe_cert_data.get_cert_data()?
     {
         qe_report_cert_data
     } else {
         bail!(
             "unsupported cert data type: {}",
-            qe_cert_data_v4.cert_data_type
+            quote.signature.qe_cert_data.cert_data_type
         );
     };
 
@@ -115,7 +114,7 @@ pub fn verify_quote_v4(
         version: QV_OUTPUT_VERSION,
         quote_version: QUOTE_FORMAT_V4,
         tee_type,
-        tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
+        status: Status::converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
         min_tcb_evaluation_data_number: min(
             qe_tcb.tcb_evaluation_data_number,
             tcb_info_v3.tcb_info.tcb_evaluation_data_number,

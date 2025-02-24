@@ -4,39 +4,40 @@ pub mod version_4;
 use crate::cert::{parse_certchain, verify_crl_signature};
 use crate::collateral::QvCollateral;
 use crate::crl::IntelSgxCrls;
-use crate::crypto::sha256sum;
-use crate::crypto::verify_p256_signature_bytes;
-use crate::enclave_identity::get_qe_tcb_status;
-use crate::enclave_identity::validate_qe_identityv2;
+use crate::crypto::{sha256sum, verify_p256_signature_bytes};
+use crate::enclave_identity::{get_qe_tcb_status, validate_qe_identityv2};
 use crate::pck::validate_pck_cert;
 use crate::sgx_extensions::extract_sgx_extensions;
-use crate::tcbinfo::validate_tcb_signing_certificate;
-use crate::tcbinfo::validate_tcbinfov3;
+use crate::tcbinfo::{validate_tcb_signing_certificate, validate_tcbinfov3};
 use crate::verifier::{QuoteVerificationOutput, ValidityIntersection};
 use crate::Result;
 use anyhow::{bail, Context};
 use dcap_types::cert::SgxExtensions;
 use dcap_types::enclave_identity::EnclaveIdentityV2;
-use dcap_types::quotes::Quote;
 use dcap_types::quotes::{
     body::{EnclaveReport, QuoteBody},
-    CertData, QuoteHeader,
+    CertData, Quote, QuoteHeader,
 };
 use dcap_types::tcbinfo::TcbInfo;
 use dcap_types::utils::parse_pem;
-use dcap_types::{EnclaveIdentityV2TcbStatus, Status, TcbInfoV3TcbStatus};
+use dcap_types::EnclaveIdentityV2TcbStatus;
 use version_3::verify_quote_v3;
 use version_4::verify_quote_v4;
 use x509_parser::certificate::X509Certificate;
 
 /// Verify the quote with the given collateral data and return the verification output.
-/// The quote version is determined by the quote header.
-/// The verification process is different for each quote version.
+///
+/// Our verifier's verification logic is based on
+/// <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/d0876c40d5e2a9255c5323c75f2002e89b73362c/Src/AttestationApp/src/AppCore/AttestationLibraryAdapter.cpp#L46>.
+///
+/// However, our verifier returns an error instead of an output if the result corresponds the status is not defined in `Status`(e.g., `STATUS_TCB_NOT_SUPPORTED`).
 ///
 /// # Arguments
 /// * `quote` - The quote to be verified.
 /// * `collateral` - The collateral data to be used for verification.
 /// * `current_time` - The current time in seconds since the Unix epoch.
+/// # Returns
+/// * The verification result.
 pub fn verify_quote(
     quote: &Quote,
     collateral: &QvCollateral,
@@ -327,58 +328,6 @@ fn validate_qe_report_data(
     let mut recomputed_report_data = [0u8; 64];
     recomputed_report_data[..32].copy_from_slice(&sha256sum(&verification_data));
     recomputed_report_data == report_data
-}
-
-// https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/16b7291a7a86e486fdfcf1dfb4be885c0cc00b4e/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L271-L312
-fn converge_tcb_status_with_qe_tcb(
-    tcb_status: TcbInfoV3TcbStatus,
-    qe_tcb_status: EnclaveIdentityV2TcbStatus,
-) -> Status {
-    match qe_tcb_status {
-        EnclaveIdentityV2TcbStatus::OutOfDate => {
-            if tcb_status == TcbInfoV3TcbStatus::UpToDate
-                || tcb_status == TcbInfoV3TcbStatus::SWHardeningNeeded
-            {
-                return Status::TcbOutOfDate;
-            } else if tcb_status == TcbInfoV3TcbStatus::ConfigurationNeeded
-                || tcb_status == TcbInfoV3TcbStatus::ConfigurationAndSWHardeningNeeded
-            {
-                return Status::TcbOutOfDateConfigurationNeeded;
-            }
-        }
-        EnclaveIdentityV2TcbStatus::Revoked => return Status::TcbRevoked,
-        EnclaveIdentityV2TcbStatus::UpToDate => {}
-    }
-
-    // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/26f9641ff62377637af5e2989ab154d807cc3b0e/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L109
-    // switch (tcbLevelStatus)
-    // {
-    //     case STATUS_TCB_TD_RELAUNCH_ADVISED:
-    //     case STATUS_TCB_TD_RELAUNCH_ADVISED_CONFIGURATION_NEEDED:
-    //     case STATUS_TCB_OUT_OF_DATE:
-    //     case STATUS_TCB_REVOKED:
-    //     case STATUS_TCB_CONFIGURATION_NEEDED:
-    //     case STATUS_TCB_OUT_OF_DATE_CONFIGURATION_NEEDED:
-    //     case STATUS_TCB_SW_HARDENING_NEEDED:
-    //     case STATUS_TCB_CONFIGURATION_AND_SW_HARDENING_NEEDED:
-    //     case STATUS_TCB_NOT_SUPPORTED:
-    //     case STATUS_OK:
-    //         return tcbLevelStatus;
-    //     default:
-    //         /// 4.1.2.4.17.5
-    //         return STATUS_TCB_UNRECOGNIZED_STATUS;
-    // }
-    match tcb_status {
-        TcbInfoV3TcbStatus::UpToDate => Status::Ok,
-        TcbInfoV3TcbStatus::SWHardeningNeeded => Status::TcbSwHardenningNeeded,
-        TcbInfoV3TcbStatus::ConfigurationNeeded => Status::TcbConfigurationNeeded,
-        TcbInfoV3TcbStatus::ConfigurationAndSWHardeningNeeded => {
-            Status::TcbConfigurationAndSwHardenningNeeded
-        }
-        TcbInfoV3TcbStatus::OutOfDate => Status::TcbOutOfDate,
-        TcbInfoV3TcbStatus::OutOfDateConfigurationNeeded => Status::TcbOutOfDateConfigurationNeeded,
-        TcbInfoV3TcbStatus::Revoked => Status::TcbRevoked,
-    }
 }
 
 #[cfg(test)]

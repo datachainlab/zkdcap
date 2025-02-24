@@ -1,9 +1,9 @@
-use super::{converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
+use super::{verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collateral::QvCollateral,
     crypto::keccak256sum,
-    verifier::{QuoteVerificationOutput, QV_OUTPUT_VERSION},
+    verifier::{QuoteVerificationOutput, Status, QV_OUTPUT_VERSION},
 };
 use anyhow::{bail, Context};
 use core::cmp::min;
@@ -14,6 +14,8 @@ use dcap_types::{
 };
 
 /// Verify the given DCAP quote v3 and return the verification output.
+///
+/// Please also refer to the documentation of `verify_quote` for more details.
 ///
 /// # Arguments
 /// - `quote`: The quote to be verified
@@ -48,7 +50,7 @@ pub fn verify_quote_v3(
         version: QV_OUTPUT_VERSION,
         quote_version: QUOTE_FORMAT_V3,
         tee_type: quote.header.tee_type,
-        tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
+        status: Status::converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
         min_tcb_evaluation_data_number: min(
             qe_tcb.tcb_evaluation_data_number,
             tcb_info_v3.tcb_info.tcb_evaluation_data_number,

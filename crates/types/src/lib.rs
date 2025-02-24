@@ -1,5 +1,4 @@
 use anyhow::bail;
-use core::fmt::Display;
 use core::str::FromStr;
 use serde::{Deserialize, Serialize};
 
@@ -135,71 +134,4 @@ pub enum TdxModuleTcbValidationStatus {
     TcbOutOfDateConfigurationNeeded,
     TcbNotSupported,
     TcbUnrecognizedStatus,
-}
-
-/// Status for quote verification result
-/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/10176d4833d72d34f287d00a27c63d757a3c1f99/Src/AttestationLibrary/include/SgxEcdsaAttestation/QuoteVerification.h#L66>
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(u8)]
-pub enum Status {
-    Ok = 0,
-    TcbOutOfDate = 1,
-    TcbRevoked = 2,
-    TcbConfigurationNeeded = 3,
-    TcbOutOfDateConfigurationNeeded = 4,
-    TcbSwHardenningNeeded = 5,
-    TcbConfigurationAndSwHardenningNeeded = 6,
-}
-
-impl Status {
-    /// Convert the status to u8
-    pub fn as_u8(&self) -> u8 {
-        *self as u8
-    }
-
-    /// Convert u8 to Status
-    pub fn from_u8(u: u8) -> Result<Self> {
-        Ok(match u {
-            0 => Status::Ok,
-            1 => Status::TcbOutOfDate,
-            2 => Status::TcbRevoked,
-            3 => Status::TcbConfigurationNeeded,
-            4 => Status::TcbOutOfDateConfigurationNeeded,
-            5 => Status::TcbSwHardenningNeeded,
-            6 => Status::TcbConfigurationAndSwHardenningNeeded,
-            _ => bail!("unrecognized Status: {}", u),
-        })
-    }
-}
-
-impl Display for Status {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let status_str = match self {
-            Status::Ok => "UpToDate",
-            Status::TcbOutOfDate => "OutOfDate",
-            Status::TcbRevoked => "Revoked",
-            Status::TcbConfigurationNeeded => "ConfigurationNeeded",
-            Status::TcbOutOfDateConfigurationNeeded => "OutOfDateConfigurationNeeded",
-            Status::TcbSwHardenningNeeded => "SWHardeningNeeded",
-            Status::TcbConfigurationAndSwHardenningNeeded => "ConfigurationAndSWHardeningNeeded",
-        };
-        write!(f, "{}", status_str)
-    }
-}
-
-impl FromStr for Status {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        Ok(match s {
-            "UpToDate" => Status::Ok,
-            "OutOfDate" => Status::TcbOutOfDate,
-            "Revoked" => Status::TcbRevoked,
-            "ConfigurationNeeded" => Status::TcbConfigurationNeeded,
-            "OutOfDateConfigurationNeeded" => Status::TcbOutOfDateConfigurationNeeded,
-            "SWHardeningNeeded" => Status::TcbSwHardenningNeeded,
-            "ConfigurationAndSWHardeningNeeded" => Status::TcbConfigurationAndSwHardenningNeeded,
-            _ => bail!("unrecognized Status: {}", s),
-        })
-    }
 }

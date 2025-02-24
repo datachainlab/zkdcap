@@ -24,11 +24,10 @@ mod quote_verifier_tests {
     use crate::crypto::keccak256sum;
     use crate::quotes::{version_3::verify_quote_v3, version_4::verify_quote_v4};
     use crate::tcbinfo::validate_tcbinfov3;
-    use crate::verifier::QuoteVerificationOutput;
+    use crate::verifier::{QuoteVerificationOutput, Status};
     use dcap_types::quotes::{version_3::QuoteV3, version_4::QuoteV4};
     use dcap_types::tcbinfo::TcbInfoV3;
     use dcap_types::utils::{parse_crl_der, parse_pem, parse_x509_der, pem_to_der};
-    use dcap_types::Status;
     use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 
     #[test]
@@ -99,7 +98,7 @@ mod quote_verifier_tests {
         let verified_output = res.unwrap();
         assert_eq!(verified_output.quote_version, 3);
         assert_eq!(verified_output.tee_type, 0);
-        assert_eq!(verified_output.tcb_status, Status::TcbSwHardenningNeeded);
+        assert_eq!(verified_output.status, Status::TcbSwHardenningNeeded);
         assert_eq!(verified_output.fmspc, [0x00, 0x90, 0x6E, 0xD5, 0x00, 0x00]);
         assert_eq!(
             verified_output.sgx_intel_root_ca_hash,
@@ -155,7 +154,7 @@ mod quote_verifier_tests {
         let res = verify_quote_v4(&dcap_quote, &collaterals, 1737467060);
         assert!(res.is_ok(), "verification failed: {:?}", res.err());
         let verified_output = res.unwrap();
-        assert_eq!(verified_output.tcb_status, Status::TcbOutOfDate);
+        assert_eq!(verified_output.status, Status::TcbOutOfDate);
         let bz = verified_output.to_bytes();
         let res = QuoteVerificationOutput::from_bytes(&bz);
         assert!(
