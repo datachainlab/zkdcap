@@ -1,5 +1,4 @@
-use crate::crypto::keccak256sum;
-use crate::{Result, VERIFIER_VERSION};
+use crate::Result;
 use alloy_sol_types::SolValue;
 use anyhow::bail;
 use core::fmt::Display;
@@ -9,11 +8,12 @@ use dcap_types::{
 };
 use x509_parser::certificate::Validity;
 
-/**
- * ValidityIntersection represents the intersection of the validity periods of multiple certificates or other DCAP collaterals.
- *
- * This is used to determine the overall validity period of the collaterals that are being verified.
- */
+/// The version of the output format.
+pub const QV_OUTPUT_VERSION: u16 = 0;
+
+/// ValidityIntersection represents the intersection of the validity periods of multiple certificates or other DCAP collaterals.
+///
+/// This is used to determine the overall validity period of the collaterals that are being verified.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidityIntersection {
     /// The maximum not_before seconds timestamp of all certificates
@@ -104,45 +104,57 @@ impl TryFrom<&Validity> for ValidityIntersection {
 /// QuoteVerificationOutput is the output of the quote verification process.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuoteVerificationOutput {
-    /// verifier version
-    /// length: 2 bytes
+    /// The version of the output format.
+    ///
+    /// A verifier of the output must check this version to ensure expected output format.
     pub version: u16,
-    /// QE version
-    /// length: 2 bytes
+    /// The format version of the quote that was verified.
+    ///
+    /// Currently, the supported versions are: 3, 4
     pub quote_version: u16,
-    /// TEE type
-    /// length: 4 bytes
+    /// The TEE type of the quote that was verified.
+    ///
+    /// 0x00000000: SGX
+    /// 0x00000081: TDX
     pub tee_type: u32,
     /// TCB status
-    /// length: 1 byte
     pub tcb_status: Status,
     /// Minimum TCB evaluation data number
-    /// length: 4 bytes
     pub min_tcb_evaluation_data_number: u32,
-    /// FMSPC
-    /// length: 6 bytes
+    /// The FMSPC of the platform that generated the quote.
     pub fmspc: [u8; 6],
-    /// SGX Intel Root CA hash (Root of Trust)
-    /// length: 32 bytes
+    /// A keccak256 hash of Intel Root CA certificate.
+    ///
+    /// This is corresponding to the Intel Root CA certificate used to verify the quote.
     pub sgx_intel_root_ca_hash: [u8; 32],
-    /// Validity intersection of the collaterals
-    /// length: 16 bytes
+    /// Validity intersection of the collateral
+    ///
+    /// This is the intersection of the validity periods of all certificates and other QV collateral.
+    /// The verifier should check this validity intersection to ensure the overall validity of the collateral.
     pub validity: ValidityIntersection,
-    /// Attestation quote body
-    /// variable length: (SGX_ENCLAVE_REPORT = 384; TD10_REPORT = 584)
+    /// The quote body of the quote that was verified.
     pub quote_body: QuoteBody,
     /// Advisory IDs
-    /// variable length
+    ///
+    /// The advisory IDs that are associated with the platform or QE that generated the quote.
     pub advisory_ids: Vec<String>,
 }
 
 impl QuoteVerificationOutput {
-    /// Calculate the hash of the verification output.
-    pub fn hash(&self) -> [u8; 32] {
-        keccak256sum(&self.to_bytes())
-    }
-
     /// Serialize the verification output to bytes.
+    ///
+    /// The serialization format is as follows:
+    /// - version: 2 bytes
+    /// - quote_version: 2 bytes
+    /// - tee_type: 4 bytes
+    /// - tcb_status: 1 byte
+    /// - min_tcb_evaluation_data_number: 4 bytes
+    /// - fmspc: 6 bytes
+    /// - sgx_intel_root_ca_hash: 32 bytes
+    /// - validity.not_before_max: 8 bytes
+    /// - validity.not_after_min: 8 bytes
+    /// - quote_body: SGX_ENCLAVE_REPORT(384 bytes) or TD10_REPORT(584 bytes)
+    /// - advisory_ids: variable length
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut output_vec = Vec::new();
 
@@ -171,12 +183,14 @@ impl QuoteVerificationOutput {
     }
 
     /// Deserialize the verification output from bytes.
+    ///
+    /// Please refer to `to_bytes` for the serialization format.
     pub fn from_bytes(slice: &[u8]) -> Result<QuoteVerificationOutput> {
         let mut version = [0; 2];
         version.copy_from_slice(&slice[0..2]);
         let version = u16::from_be_bytes(version);
-        if version != VERIFIER_VERSION {
-            bail!("unsupported verifier version: {}", version);
+        if version != QV_OUTPUT_VERSION {
+            bail!("unexpected version: {}", version);
         }
         let mut quote_version = [0; 2];
         quote_version.copy_from_slice(&slice[2..4]);

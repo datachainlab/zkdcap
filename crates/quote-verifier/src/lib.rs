@@ -15,8 +15,6 @@ pub mod verifier;
 pub use anyhow::Error;
 pub use dcap_types as types;
 
-pub const VERIFIER_VERSION: u16 = 0;
-
 type Result<T> = core::result::Result<T, anyhow::Error>;
 
 #[cfg(test)]

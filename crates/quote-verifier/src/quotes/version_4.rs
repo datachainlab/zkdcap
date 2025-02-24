@@ -4,8 +4,7 @@ use crate::{
     collateral::QvCollateral,
     crypto::keccak256sum,
     tdx_module::{check_tdx_module_tcb_status, converge_tcb_status_with_tdx_module_tcb},
-    verifier::QuoteVerificationOutput,
-    VERIFIER_VERSION,
+    verifier::{QuoteVerificationOutput, QV_OUTPUT_VERSION},
 };
 use anyhow::{bail, Context};
 use core::cmp::min;
@@ -113,7 +112,7 @@ pub fn verify_quote_v4(
     };
 
     Ok(QuoteVerificationOutput {
-        version: VERIFIER_VERSION,
+        version: QV_OUTPUT_VERSION,
         quote_version: QUOTE_FORMAT_V4,
         tee_type,
         tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),

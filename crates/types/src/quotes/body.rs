@@ -4,9 +4,7 @@ use crate::{Result, ENCLAVE_REPORT_LEN};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum QuoteBody {
-    /// QE3
     SGXQuoteBody(EnclaveReport),
-    /// QE4
     TD10QuoteBody(TD10ReportBody),
 }
 

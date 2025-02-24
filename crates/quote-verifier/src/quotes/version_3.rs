@@ -3,8 +3,7 @@ use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collateral::QvCollateral,
     crypto::keccak256sum,
-    verifier::QuoteVerificationOutput,
-    VERIFIER_VERSION,
+    verifier::{QuoteVerificationOutput, QV_OUTPUT_VERSION},
 };
 use anyhow::{bail, Context};
 use core::cmp::min;
@@ -46,7 +45,7 @@ pub fn verify_quote_v3(
     let advisory_ids = merge_advisory_ids(tcb_advisory_ids, qe_tcb.advisory_ids);
 
     Ok(QuoteVerificationOutput {
-        version: VERIFIER_VERSION,
+        version: QV_OUTPUT_VERSION,
         quote_version: QUOTE_FORMAT_V3,
         tee_type: quote.header.tee_type,
         tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
