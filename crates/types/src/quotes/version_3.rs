@@ -33,7 +33,13 @@ pub struct QuoteV3 {
 
 impl QuoteV3 {
     /// Parse a QuoteV3 from a byte slice.
-    pub fn from_bytes(raw_bytes: &[u8]) -> Result<QuoteV3> {
+    ///
+    /// # Arguments
+    /// - `raw_bytes`: A byte slice containing the QuoteV3 data.
+    ///
+    /// # Returns
+    /// - A tuple containing the parsed QuoteV3 and the number of bytes consumed.
+    pub fn from_bytes(raw_bytes: &[u8]) -> Result<(Self, usize)> {
         if raw_bytes.len() < SIGNATURE_DATA_OFFSET {
             bail!("QuoteV3 data is too short");
         }
@@ -56,16 +62,19 @@ impl QuoteV3 {
                 raw_bytes.len()
             );
         }
-        let signature = QuoteSignatureDataV3::from_bytes(
-            &raw_bytes[SIGNATURE_DATA_OFFSET..SIGNATURE_DATA_OFFSET + signature_len as usize],
-        )?;
+        let quote_end_offset = SIGNATURE_DATA_OFFSET + signature_len as usize;
+        let signature =
+            QuoteSignatureDataV3::from_bytes(&raw_bytes[SIGNATURE_DATA_OFFSET..quote_end_offset])?;
 
-        Ok(QuoteV3 {
-            header,
-            isv_enclave_report,
-            signature_len,
-            signature,
-        })
+        Ok((
+            QuoteV3 {
+                header,
+                isv_enclave_report,
+                signature_len,
+                signature,
+            },
+            quote_end_offset,
+        ))
     }
 
     /// Serialize a QuoteV3 to a byte vector.
@@ -151,11 +160,14 @@ mod tests {
     #[test]
     fn test_quote_v3() {
         let raw_bytes = hex::decode(RAW_QUOTE_V3).unwrap();
-        let quote = QuoteV3::from_bytes(&raw_bytes).unwrap();
+        let (quote, consumed) = QuoteV3::from_bytes(&raw_bytes).unwrap();
+        assert_eq!(consumed, raw_bytes.len());
+        assert_eq!(quote.header.version, 3);
         let serialized_quote = quote.to_bytes();
         assert_eq!(raw_bytes.to_vec(), serialized_quote);
 
-        let quote = Quote::from_bytes(&raw_bytes).unwrap();
+        let (quote, consumed) = Quote::from_bytes(&raw_bytes).unwrap();
+        assert_eq!(consumed, raw_bytes.len());
         let serialized_quote2 = quote.to_bytes();
         assert_eq!(raw_bytes.to_vec(), serialized_quote2);
         assert_eq!(serialized_quote, serialized_quote2);
@@ -172,9 +184,11 @@ mod tests {
         #[test]
         fn test_quote_v3_roundtrip(quote_v3 in quote_v3_strategy()) {
             let raw_bytes = quote_v3.to_bytes();
-            let parsed_quote_v3 = QuoteV3::from_bytes(&raw_bytes).unwrap();
+            let (parsed_quote_v3, consumed) = QuoteV3::from_bytes(&raw_bytes).unwrap();
+            prop_assert_eq!(consumed, raw_bytes.len());
             prop_assert_eq!(&quote_v3, &parsed_quote_v3);
-            let quote = Quote::from_bytes(&raw_bytes).unwrap();
+            let (quote, consumed) = Quote::from_bytes(&raw_bytes).unwrap();
+            prop_assert_eq!(consumed, raw_bytes.len());
             prop_assert_eq!(&quote, &Quote::V3(quote_v3));
             let serialized_quote = quote.to_bytes();
             prop_assert_eq!(raw_bytes, serialized_quote);

@@ -24,14 +24,14 @@ pub enum Quote {
 
 impl Quote {
     /// Parse a byte slice into a `Quote` structure.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<(Self, usize)> {
         if bytes.len() < QUOTE_HEADER_LEN {
             bail!("Invalid quote length");
         }
         let version = u16::from_le_bytes([bytes[0], bytes[1]]);
         match version {
-            3 => Ok(QuoteV3::from_bytes(bytes)?.into()),
-            4 => Ok(QuoteV4::from_bytes(bytes)?.into()),
+            3 => Ok(QuoteV3::from_bytes(bytes).map(|(quote, consumed)| (quote.into(), consumed))?),
+            4 => Ok(QuoteV4::from_bytes(bytes).map(|(quote, consumed)| (quote.into(), consumed))?),
             _ => bail!("Unsupported quote version: {}", version),
         }
     }
