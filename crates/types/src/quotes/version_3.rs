@@ -1,5 +1,5 @@
 use super::{body::EnclaveReport, CertData, QeAuthData, QuoteHeader};
-use crate::{Result, ENCLAVE_REPORT_LEN, QUOTE_HEADER_LEN};
+use crate::{Result, ENCLAVE_REPORT_LEN, QUOTE_FORMAT_V3, QUOTE_HEADER_LEN};
 use anyhow::{anyhow, bail};
 
 const SIGNATURE_DATA_SIZE_OFFSET: usize = QUOTE_HEADER_LEN + ENCLAVE_REPORT_LEN;
@@ -41,11 +41,15 @@ impl QuoteV3 {
     /// - A tuple containing the parsed QuoteV3 and the number of bytes consumed.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<(Self, usize)> {
         if raw_bytes.len() < SIGNATURE_DATA_OFFSET {
-            bail!("QuoteV3 data is too short");
+            bail!("Invalid Quote v3 length: header");
         }
         let header = QuoteHeader::from_bytes(&raw_bytes[..QUOTE_HEADER_LEN])?;
-        if header.version != 3 {
-            bail!("QuoteV3 version is not 3");
+        if header.version != QUOTE_FORMAT_V3 {
+            bail!(
+                "Invalid Quote version: expected {}, got {}",
+                QUOTE_FORMAT_V3,
+                header.version
+            );
         }
         let isv_enclave_report =
             EnclaveReport::from_bytes(&raw_bytes[QUOTE_HEADER_LEN..SIGNATURE_DATA_SIZE_OFFSET])?;
@@ -56,11 +60,7 @@ impl QuoteV3 {
             raw_bytes[SIGNATURE_DATA_SIZE_OFFSET + 3],
         ]);
         if raw_bytes.len() < SIGNATURE_DATA_OFFSET + signature_len as usize {
-            bail!(
-                "QuoteV3 data is not the expected length: expected {}, got {}",
-                SIGNATURE_DATA_OFFSET + signature_len as usize,
-                raw_bytes.len()
-            );
+            bail!("Invalid Quote v3 length: signature data");
         }
         let quote_end_offset = SIGNATURE_DATA_OFFSET + signature_len as usize;
         let signature =
@@ -197,7 +197,7 @@ mod tests {
 
     pub(crate) fn quote_v3_strategy() -> impl Strategy<Value = QuoteV3> {
         (
-            quote_header_strategy(Some(3), Some(SGX_TEE_TYPE)),
+            quote_header_strategy(Some(QUOTE_FORMAT_V3), Some(SGX_TEE_TYPE)),
             enclave_report_strategy(),
             quote_signature_data_v3_strategy(),
         )

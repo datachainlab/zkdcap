@@ -1,4 +1,4 @@
-use super::{check_quote_header, converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
+use super::{converge_tcb_status_with_qe_tcb, validate_quote_header, verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collaterals::IntelCollateral,
@@ -11,6 +11,7 @@ use core::cmp::min;
 use dcap_types::{
     quotes::{body::QuoteBody, version_3::QuoteV3},
     tcbinfo::TcbInfo,
+    QUOTE_FORMAT_V3,
 };
 
 /// Verify the given DCAP quote v3 and return the verification output.
@@ -24,7 +25,7 @@ pub fn verify_quote_v3(
     collateral: &IntelCollateral,
     current_time: u64,
 ) -> Result<QuoteVerificationOutput> {
-    check_quote_header(&quote.header, 3).context("invalid quote header")?;
+    validate_quote_header(&quote.header, QUOTE_FORMAT_V3).context("invalid quote header")?;
 
     let quote_body = QuoteBody::SGXQuoteBody(quote.isv_enclave_report);
     let (qe_status, sgx_extensions, tcb_info, validity) = verify_quote_common(

@@ -196,7 +196,7 @@ fn verify_quote_common(
     Ok((qe_tcb, pck_cert_sgx_extensions, tcb_info, validity))
 }
 
-fn check_quote_header(quote_header: &QuoteHeader, expected_quote_version: u16) -> Result<()> {
+fn validate_quote_header(quote_header: &QuoteHeader, expected_quote_version: u16) -> Result<()> {
     if quote_header.version != expected_quote_version {
         bail!("Invalid Quote Version");
     } else if quote_header.att_key_type != ECDSA_256_WITH_P256_CURVE {

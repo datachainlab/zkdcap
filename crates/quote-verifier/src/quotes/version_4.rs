@@ -1,4 +1,4 @@
-use super::{check_quote_header, converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
+use super::{converge_tcb_status_with_qe_tcb, validate_quote_header, verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collaterals::IntelCollateral,
@@ -12,7 +12,7 @@ use core::cmp::min;
 use dcap_types::{
     quotes::{body::QuoteBody, version_4::QuoteV4, CertDataType},
     tcbinfo::TcbInfo,
-    TdxModuleTcbValidationStatus, SGX_TEE_TYPE, TDX_TEE_TYPE,
+    TdxModuleTcbValidationStatus, QUOTE_FORMAT_V4, SGX_TEE_TYPE, TDX_TEE_TYPE,
 };
 
 /// Verify the given DCAP quote v4 and return the verification output.
@@ -26,7 +26,7 @@ pub fn verify_quote_v4(
     collaterals: &IntelCollateral,
     current_time: u64,
 ) -> Result<QuoteVerificationOutput> {
-    check_quote_header(&quote.header, 4).context("invalid quote header")?;
+    validate_quote_header(&quote.header, QUOTE_FORMAT_V4).context("invalid quote header")?;
 
     // we'll now proceed to verify the qe
     let qe_cert_data_v4 = &quote.signature.qe_cert_data;

@@ -1,6 +1,7 @@
 use super::{body::*, CertData, QuoteHeader};
 use crate::{
-    Result, ENCLAVE_REPORT_LEN, QUOTE_HEADER_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN, TDX_TEE_TYPE,
+    Result, ENCLAVE_REPORT_LEN, QUOTE_FORMAT_V4, QUOTE_HEADER_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN,
+    TDX_TEE_TYPE,
 };
 use anyhow::bail;
 
@@ -31,11 +32,15 @@ impl QuoteV4 {
     /// - A tuple containing the parsed `QuoteV4` structure and the number of bytes consumed.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<(Self, usize)> {
         if raw_bytes.len() < QUOTE_HEADER_LEN {
-            bail!("Invalid Quote length: header");
+            bail!("Invalid Quote v4 length: header");
         }
         let header = QuoteHeader::from_bytes(&raw_bytes[..QUOTE_HEADER_LEN])?;
-        if header.version != 4 {
-            bail!("Invalid Quote version");
+        if header.version != QUOTE_FORMAT_V4 {
+            bail!(
+                "Invalid Quote version: expected {}, got {}",
+                QUOTE_FORMAT_V4,
+                header.version
+            );
         }
         let quote_body;
         let sig_len_offset = match header.tee_type {
@@ -56,7 +61,7 @@ impl QuoteV4 {
             }
         };
         if raw_bytes.len() < sig_len_offset + 4 {
-            bail!("Invalid Quote length: signature length field");
+            bail!("Invalid Quote v4 length: signature length field");
         }
         let signature_len = u32::from_le_bytes([
             raw_bytes[sig_len_offset],
@@ -67,9 +72,9 @@ impl QuoteV4 {
         let sig_slice_offset = sig_len_offset + 4;
         if raw_bytes.len() < sig_slice_offset + signature_len as usize {
             bail!(
-                "Invalid Quote length: signature data: expected {} bytes, got {}",
+                "Invalid Quote v4 length: signature data: expected {}, got {}",
                 signature_len,
-                raw_bytes.len() - sig_slice_offset
+                raw_bytes.len() - sig_slice_offset,
             );
         }
         let quote_end_offset = sig_slice_offset + signature_len as usize;
@@ -204,7 +209,7 @@ mod tests {
 
     pub(crate) fn quote_v4_strategy(tee_type: u32) -> impl Strategy<Value = QuoteV4> {
         (
-            quote_header_strategy(Some(4), Some(tee_type)),
+            quote_header_strategy(Some(QUOTE_FORMAT_V4), Some(tee_type)),
             quote_body_strategy(tee_type),
             quote_signature_data_v4_strategy(),
         )

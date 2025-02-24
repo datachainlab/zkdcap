@@ -9,9 +9,13 @@ pub mod quotes;
 pub mod tcbinfo;
 pub mod utils;
 
-// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
+/// ref. p.68 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
+pub const QUOTE_FORMAT_V3: u16 = 3;
+/// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
+pub const QUOTE_FORMAT_V4: u16 = 4;
+/// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
 pub const SGX_TEE_TYPE: u32 = 0x00000000;
-// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
+/// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
 pub const TDX_TEE_TYPE: u32 = 0x00000081;
 
 /// ref. p.68 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
