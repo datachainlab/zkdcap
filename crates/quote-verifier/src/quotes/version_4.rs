@@ -2,7 +2,7 @@ use super::{converge_tcb_status_with_qe_tcb, validate_quote_header, verify_quote
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collaterals::IntelCollateral,
-    crypto::sha256sum,
+    crypto::keccak256sum,
     tdx_module::{check_tdx_module_tcb_status, converge_tcb_status_with_tdx_module_tcb},
     verifier::QuoteVerificationOutput,
     VERIFIER_VERSION,
@@ -121,7 +121,7 @@ pub fn verify_quote_v4(
             tcb_info_v3.tcb_info.tcb_evaluation_data_number,
         ),
         fmspc: sgx_extensions.fmspc,
-        sgx_intel_root_ca_hash: sha256sum(collaterals.sgx_intel_root_ca_der.as_ref()),
+        sgx_intel_root_ca_hash: keccak256sum(collaterals.sgx_intel_root_ca_der.as_ref()),
         validity,
         quote_body: quote.quote_body,
         advisory_ids,
