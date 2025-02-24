@@ -5,7 +5,8 @@ use dcap_types::tcbinfo::TcbInfoV3;
 use dcap_types::{TcbInfoV3TcbStatus, TdxModuleTcbStatus, TdxModuleTcbValidationStatus};
 
 /// Get the TCB status of the TDX module corresponding to the given SVN.
-/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L62-L97>
+///
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L62-L97>
 ///
 /// # Arguments
 /// - `tee_tcb_svn`: The SVN of the TEE TCB extracted from the `TD10ReportBody`
@@ -69,7 +70,8 @@ pub fn check_tdx_module_tcb_status(
 }
 
 /// Converge TCB status with TDX module TCB status
-/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L99-L137>
+///
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L99-L137>
 pub fn converge_tcb_status_with_tdx_module_tcb(
     tcb_status: TcbInfoV3TcbStatus,
     tdx_module_tcb_status: TdxModuleTcbValidationStatus,

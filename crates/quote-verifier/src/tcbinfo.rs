@@ -59,7 +59,7 @@ pub fn validate_tcbinfov3(
     tcbinfov3: &TcbInfoV3,
     tcb_signing_cert: &X509Certificate,
 ) -> Result<ValidityIntersection> {
-    // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L96
+    // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L96
     if tcbinfov3.tcb_info.version != 3 {
         bail!("Invalid TCB Info Version");
     } else if tee_type == SGX_TEE_TYPE {

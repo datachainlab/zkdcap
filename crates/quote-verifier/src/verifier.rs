@@ -170,7 +170,7 @@ impl QuoteVerificationOutput {
 /// Status for quote verification result
 ///
 /// These status values are based on
-/// <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/10176d4833d72d34f287d00a27c63d757a3c1f99/Src/AttestationLibrary/include/SgxEcdsaAttestation/QuoteVerification.h#L66>.
+/// <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/include/SgxEcdsaAttestation/QuoteVerification.h#L66>.
 /// However, our implementation does not define some statuses(e.g., STATUS_TCB_NOT_SUPPORTED). If the result corresponds those statuses, our verifier returns an error instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
@@ -213,7 +213,7 @@ impl Status {
 
     /// Converge TCB status with QE TCB status
     ///
-    /// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/26f9641ff62377637af5e2989ab154d807cc3b0e/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L83>
+    /// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L83>
     /// # Arguments
     /// * `tcb_status` - The TCB status of the platform or the status converged from the TCB status of the platform and the TDX module
     /// * `qe_tcb_status` - The TCB status of the QE
@@ -223,6 +223,7 @@ impl Status {
     ) -> Self {
         // NOTE: STATUS_SGX_ENCLAVE_REPORT_ISVSVN_NOT_SUPPORTED is not defined in our implementation, so we do not handle it here.
         match qe_tcb_status {
+            // equivalent to STATUS_SGX_ENCLAVE_REPORT_ISVSVN_OUT_OF_DATE
             EnclaveIdentityV2TcbStatus::OutOfDate => {
                 if tcb_status == TcbInfoV3TcbStatus::UpToDate
                     || tcb_status == TcbInfoV3TcbStatus::SWHardeningNeeded
@@ -234,7 +235,9 @@ impl Status {
                     return Status::TcbOutOfDateConfigurationNeeded;
                 }
             }
+            // equivalent to STATUS_SGX_ENCLAVE_REPORT_ISVSVN_REVOKED
             EnclaveIdentityV2TcbStatus::Revoked => return Status::TcbRevoked,
+            // equivalent to STATUS_OK
             EnclaveIdentityV2TcbStatus::UpToDate => {}
         }
 

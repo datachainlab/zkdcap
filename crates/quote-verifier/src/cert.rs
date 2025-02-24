@@ -77,7 +77,7 @@ pub fn get_x509_issuer_cn(cert: &X509Certificate) -> String {
 
 /// Get the TCB status of the SGX and TDX corresponding to the given SVN from the TCB Info V3.
 /// This function returns the TCB status of the SGX and TDX, and the advisory IDs.
-/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L129-L181>
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/Checks/TcbLevelCheck.cpp#L129-L181>
 ///
 /// # Arguments
 /// * `tee_type` - The type of TEE (SGX or TDX)
@@ -108,14 +108,15 @@ pub fn get_sgx_tdx_tcb_status_v3(
         bail!("Unsupported TEE type: {}", tee_type);
     }
 
-    // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L117
     if sgx_extensions.fmspc != tcbinfov3.tcb_info.fmspc()? {
+        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L117
         bail!(
             "FMSPC does not match: {:x?} != {:x?}",
             sgx_extensions.fmspc,
             tcbinfov3.tcb_info.fmspc()?
         );
     } else if sgx_extensions.pceid != tcbinfov3.tcb_info.pce_id()? {
+        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L124
         bail!(
             "PCE ID does not match: {:x?} != {:x?}",
             sgx_extensions.pceid,

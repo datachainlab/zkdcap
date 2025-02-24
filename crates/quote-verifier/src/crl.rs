@@ -91,7 +91,7 @@ impl<'a> IntelSgxCrls<'a> {
         };
         // check if the cert is revoked given the crl
         // NOTE: We assume that the each revoked certificate entry's `revocation_date` is older than or equal to the `last_update` of the CRL
-        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/20a199db982c2fa68d9d5aa971a4c8f6f78014bd/Src/AttestationLibrary/src/PckParser/CrlStore.cpp#L130
+        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/PckParser/CrlStore.cpp#L130
         Ok(crl
             .iter_revoked_certificates()
             .any(|entry| entry.user_certificate == cert.tbs_certificate.serial))

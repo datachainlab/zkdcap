@@ -91,11 +91,11 @@ pub fn verify_quote_v4(
             .map(|tdx_body| (tdx_body.mrsignerseam, tdx_body.seam_attributes))
             .context("TDX Quote Body not found")?;
 
-        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L181
+        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L181-L198
         if tdx_module_mrsigner != tdx_report_mrsigner {
             bail!("TDX module mrsigner mismatch");
         }
-        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L200
+        // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L200-L217
         if tdx_module_attributes != tdx_report_attributes {
             bail!("TDX module attributes mismatch");
         }

@@ -28,7 +28,7 @@ use x509_parser::certificate::X509Certificate;
 /// Verify the quote with the given collateral data and return the verification output.
 ///
 /// Our verifier's verification logic is based on
-/// <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/d0876c40d5e2a9255c5323c75f2002e89b73362c/Src/AttestationApp/src/AppCore/AttestationLibraryAdapter.cpp#L46>.
+/// <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationApp/src/AppCore/AttestationLibraryAdapter.cpp#L46>.
 ///
 /// However, our verifier returns an error instead of an output if the result corresponds the status is not defined in `Status`(e.g., `STATUS_TCB_NOT_SUPPORTED`).
 ///
@@ -198,7 +198,11 @@ fn verify_quote_common(
 
 /// Verify the QE Report and return the TCB Status and Advisory IDs
 ///
-/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L47>
+/// ref.
+/// - <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L221>
+/// - <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L230>
+/// - <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L47>
+///
 /// do the following checks:
 /// - ensure that `ecdsa_attestation_key` and `qe_auth_data` are valid against the `qe_report.report_data`
 /// - validate the `qe_report` against the `qeidentityv2`
@@ -231,10 +235,20 @@ fn verify_qe_report(
     )
     .context("Invalid QE Report Signature")?;
 
-    // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L92
-    // https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L286
     let (tcb_status, advisory_ids) =
         get_qe_tcb_status(qe_report.isv_svn, &qeidentityv2.enclave_identity.tcb_levels)?;
+
+    // NOTE: The reference implementation converts `TcbStatus` to `Status`, but the conversion does not give any additional information and is therefore omitted in our implementation.
+    // The following points are the conversion rules in the reference implementation:
+    //
+    // 1. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L93
+    // `tcb_status` is converted to the following status:
+    // UpToDate => STATUS_OK
+    // Revoked => STATUS_SGX_ENCLAVE_REPORT_ISVSVN_REVOKED
+    // OutOfDate => STATUS_SGX_ENCLAVE_REPORT_ISVSVN_OUT_OF_DATE
+    //
+    // 2. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L286
+    // The above three statuses are fallthrough to the default case, so there is no status conversion here.
 
     Ok(QeTcb {
         tcb_evaluation_data_number: qeidentityv2.enclave_identity.tcb_evaluation_data_number,
@@ -265,7 +279,7 @@ fn verify_quote_attestation(
 
 /// Validate the QE Report against the QEIdentity
 ///
-/// ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L47
+/// ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L47
 fn validate_qe_report(
     enclave_report: &EnclaveReport,
     qeidentityv2: &EnclaveIdentityV2,
