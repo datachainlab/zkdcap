@@ -1,7 +1,7 @@
 use super::{converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
-    collaterals::IntelCollateral,
+    collateral::QvCollateral,
     crypto::keccak256sum,
     tdx_module::{check_tdx_module_tcb_status, converge_tcb_status_with_tdx_module_tcb},
     verifier::QuoteVerificationOutput,
@@ -20,11 +20,11 @@ use dcap_types::{
 ///
 /// # Arguments
 /// - `quote`: The quote to be verified
-/// - `collaterals`: The collateral data to be used for verification
+/// - `collateral`: The collateral data to be used for verification
 /// - `current_time`: The current time in seconds since the Unix epoch
 pub fn verify_quote_v4(
     quote: &QuoteV4,
-    collaterals: &IntelCollateral,
+    collateral: &QvCollateral,
     current_time: u64,
 ) -> Result<QuoteVerificationOutput> {
     validate_quote_header_v4(&quote.header).context("invalid quote header")?;
@@ -53,7 +53,7 @@ pub fn verify_quote_v4(
         &qe_report_cert_data.qe_report_signature,
         &qe_report_cert_data.qe_auth_data.data,
         &qe_report_cert_data.qe_cert_data,
-        collaterals,
+        collateral,
         current_time,
     )?;
 
@@ -122,7 +122,7 @@ pub fn verify_quote_v4(
             tcb_info_v3.tcb_info.tcb_evaluation_data_number,
         ),
         fmspc: sgx_extensions.fmspc,
-        sgx_intel_root_ca_hash: keccak256sum(collaterals.sgx_intel_root_ca_der.as_ref()),
+        sgx_intel_root_ca_hash: keccak256sum(collateral.sgx_intel_root_ca_der.as_ref()),
         validity,
         quote_body: quote.quote_body,
         advisory_ids,

@@ -6,16 +6,16 @@ use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevo
 
 use crate::Result;
 
-/// IntelCollateral is a struct that holds the collateral data that is required to verify the
+/// QvCollateral is a struct that holds the collateral data that is required to verify the
 /// authenticity of the quote. This includes the TCBInfo, QEIdentity, certificates and CRLs.
 #[derive(Clone, Debug, Default)]
-pub struct IntelCollateral {
+pub struct QvCollateral {
     /// TCBInfo in JSON format
     /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-model-v3>
-    pub tcbinfo_bytes: Vec<u8>,
+    pub tcbinfo_json: Vec<u8>,
     /// QEIdentity in JSON format
     /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-enclave-identity-model-v2>
-    pub qeidentity_bytes: Vec<u8>,
+    pub qeidentity_json: Vec<u8>,
     /// SGX Intel Root CA certificate in DER format
     /// ref. <https://certificates.trustedservices.intel.com/Intel_SGX_Provisioning_Certification_RootCA.pem>
     pub sgx_intel_root_ca_der: Vec<u8>,
@@ -32,8 +32,8 @@ pub struct IntelCollateral {
     pub sgx_pck_crl_der: Vec<u8>,
 }
 
-impl IntelCollateral {
-    /// Serializes the IntelCollateral struct into a `Vec<u8>`
+impl QvCollateral {
+    /// Serializes the QvCollateral struct into a `Vec<u8>`
     pub fn to_bytes(&self) -> Vec<u8> {
         // serialization scheme is simple: the bytestream is made of 2 parts
         // the first contains a u32 length for each of the members
@@ -42,8 +42,8 @@ impl IntelCollateral {
 
         // get the total length
         let total_length = 4 * 6
-            + self.tcbinfo_bytes.len()
-            + self.qeidentity_bytes.len()
+            + self.tcbinfo_json.len()
+            + self.qeidentity_json.len()
             + self.sgx_intel_root_ca_der.len()
             + self.sgx_tcb_signing_der.len()
             + self.sgx_intel_root_ca_crl_der.len()
@@ -51,15 +51,15 @@ impl IntelCollateral {
 
         // create the vec and copy the data
         let mut data = Vec::with_capacity(total_length);
-        data.extend_from_slice(&(self.tcbinfo_bytes.len() as u32).to_le_bytes());
-        data.extend_from_slice(&(self.qeidentity_bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(self.tcbinfo_json.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(self.qeidentity_json.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_intel_root_ca_der.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_tcb_signing_der.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_intel_root_ca_crl_der.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_pck_crl_der.len() as u32).to_le_bytes());
 
-        data.extend_from_slice(&self.tcbinfo_bytes);
-        data.extend_from_slice(&self.qeidentity_bytes);
+        data.extend_from_slice(&self.tcbinfo_json);
+        data.extend_from_slice(&self.qeidentity_json);
         data.extend_from_slice(&self.sgx_intel_root_ca_der);
         data.extend_from_slice(&self.sgx_tcb_signing_der);
         data.extend_from_slice(&self.sgx_intel_root_ca_crl_der);
@@ -68,17 +68,17 @@ impl IntelCollateral {
         data
     }
 
-    /// Deserializes the IntelCollateral struct from a byte slice
+    /// Deserializes the QvCollateral struct from a byte slice
     #[allow(unused_assignments)]
     pub fn from_bytes(slice: &[u8]) -> Result<Self> {
         if slice.len() < 4 * 6 {
-            bail!("Invalid IntelCollateral length");
+            bail!("Invalid QvCollateral length");
         }
 
         // reverse the serialization process
         // each length is 4 bytes long, we have a total of 6 members
-        let tcbinfo_bytes_len = u32::from_le_bytes(slice[0..4].try_into()?) as usize;
-        let qeidentity_bytes_len = u32::from_le_bytes(slice[4..8].try_into()?) as usize;
+        let tcbinfo_json_len = u32::from_le_bytes(slice[0..4].try_into()?) as usize;
+        let qeidentity_json_len = u32::from_le_bytes(slice[4..8].try_into()?) as usize;
         let sgx_intel_root_ca_der_len = u32::from_le_bytes(slice[8..12].try_into()?) as usize;
         let sgx_tcb_signing_der_len = u32::from_le_bytes(slice[12..16].try_into()?) as usize;
         let sgx_intel_root_ca_crl_der_len = u32::from_le_bytes(slice[16..20].try_into()?) as usize;
@@ -88,20 +88,20 @@ impl IntelCollateral {
 
         if slice.len()
             < offset
-                + tcbinfo_bytes_len
-                + qeidentity_bytes_len
+                + tcbinfo_json_len
+                + qeidentity_json_len
                 + sgx_intel_root_ca_der_len
                 + sgx_tcb_signing_der_len
                 + sgx_intel_root_ca_crl_der_len
                 + sgx_pck_crl_der_len
         {
-            bail!("Invalid IntelCollateral length");
+            bail!("Invalid QvCollateral length");
         }
 
-        let tcbinfo_bytes = slice[offset..offset + tcbinfo_bytes_len].to_vec();
-        offset += tcbinfo_bytes_len;
-        let qeidentity_bytes = slice[offset..offset + qeidentity_bytes_len].to_vec();
-        offset += qeidentity_bytes_len;
+        let tcbinfo_json = slice[offset..offset + tcbinfo_json_len].to_vec();
+        offset += tcbinfo_json_len;
+        let qeidentity_json = slice[offset..offset + qeidentity_json_len].to_vec();
+        offset += qeidentity_json_len;
         let sgx_intel_root_ca_der = slice[offset..offset + sgx_intel_root_ca_der_len].to_vec();
         offset += sgx_intel_root_ca_der_len;
         let sgx_tcb_signing_der = slice[offset..offset + sgx_tcb_signing_der_len].to_vec();
@@ -112,9 +112,9 @@ impl IntelCollateral {
         let sgx_pck_crl_der = slice[offset..offset + sgx_pck_crl_der_len].to_vec();
         offset += sgx_pck_crl_der_len;
 
-        Ok(IntelCollateral {
-            tcbinfo_bytes,
-            qeidentity_bytes,
+        Ok(QvCollateral {
+            tcbinfo_json,
+            qeidentity_json,
             sgx_intel_root_ca_der,
             sgx_tcb_signing_der,
             sgx_intel_root_ca_crl_der,
@@ -124,7 +124,7 @@ impl IntelCollateral {
 
     /// Returns the TCBInfoV3 struct from the TCBInfo JSON bytes
     pub fn get_tcbinfov3(&self) -> Result<TcbInfoV3> {
-        let tcbinfo: TcbInfoV3 = serde_json::from_slice(&self.tcbinfo_bytes)?;
+        let tcbinfo: TcbInfoV3 = serde_json::from_slice(&self.tcbinfo_json)?;
         if tcbinfo.tcb_info.version != 3 {
             bail!("Invalid TCB Info version: {}", tcbinfo.tcb_info.version);
         }
@@ -133,7 +133,7 @@ impl IntelCollateral {
 
     /// Returns the EnclaveIdentityV2 struct from the QEIdentity JSON bytes
     pub fn get_qeidentityv2(&self) -> Result<EnclaveIdentityV2> {
-        let qe: EnclaveIdentityV2 = serde_json::from_slice(&self.qeidentity_bytes)?;
+        let qe: EnclaveIdentityV2 = serde_json::from_slice(&self.qeidentity_json)?;
         if qe.enclave_identity.version != 2 {
             bail!(
                 "Invalid QE Identity version: {}",

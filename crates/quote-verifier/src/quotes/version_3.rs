@@ -1,7 +1,7 @@
 use super::{converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
-    collaterals::IntelCollateral,
+    collateral::QvCollateral,
     crypto::keccak256sum,
     verifier::QuoteVerificationOutput,
     VERIFIER_VERSION,
@@ -22,7 +22,7 @@ use dcap_types::{
 /// - `current_time`: The current time in seconds since the Unix epoch
 pub fn verify_quote_v3(
     quote: &QuoteV3,
-    collateral: &IntelCollateral,
+    collateral: &QvCollateral,
     current_time: u64,
 ) -> Result<QuoteVerificationOutput> {
     validate_quote_header_v3(&quote.header).context("invalid quote header")?;
@@ -180,9 +180,9 @@ mod tests {
             .build_and_sign(&tcb_certchain.key)
             .unwrap();
 
-        let collateral = IntelCollateral {
-            tcbinfo_bytes: serde_json::to_vec(&tcb_info).unwrap(),
-            qeidentity_bytes: serde_json::to_vec(&qe_identity).unwrap(),
+        let collateral = QvCollateral {
+            tcbinfo_json: serde_json::to_vec(&tcb_info).unwrap(),
+            qeidentity_json: serde_json::to_vec(&qe_identity).unwrap(),
             sgx_intel_root_ca_der: root_ca.cert.to_der().unwrap(),
             sgx_tcb_signing_der: tcb_certchain.cert.to_der().unwrap(),
             sgx_intel_root_ca_crl_der: root_ca_crl,

@@ -182,7 +182,7 @@ fn get_crl_type_from_issuer_cn(issuer: &str) -> Result<CrlType> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::collaterals::IntelCollateral;
+    use crate::collateral::QvCollateral;
     use dcap_collaterals::{
         certs::{gen_pck_certchain, gen_root_ca, PckCa},
         sgx_extensions::SgxExtensionsBuilder,
@@ -205,7 +205,7 @@ mod tests {
 
             // Test the case where the type of the given CRLs are correct
             {
-                let collateral = IntelCollateral {
+                let collateral = QvCollateral {
                     sgx_intel_root_ca_crl_der: root_ca.crl.to_der().unwrap(),
                     sgx_pck_crl_der: pck_certchain.pck_cert_crl.to_der().unwrap(),
                     ..Default::default()
@@ -250,7 +250,7 @@ mod tests {
             // Test the case where the PCK cert is revoked
             {
                 let pck_certchain2 = pck_certchain.gen_new_pck_cert(true);
-                let collateral = IntelCollateral {
+                let collateral = QvCollateral {
                     sgx_intel_root_ca_crl_der: root_ca.crl.to_der().unwrap(),
                     sgx_pck_crl_der: pck_certchain2.pck_cert_crl.to_der().unwrap(),
                     ..Default::default()
@@ -273,7 +273,7 @@ mod tests {
                 let root_ca2 = root_ca
                     .with_new_crl(vec![pck_certchain.pck_cert_ca.clone()])
                     .unwrap();
-                let collateral = IntelCollateral {
+                let collateral = QvCollateral {
                     sgx_intel_root_ca_crl_der: root_ca2.crl.to_der().unwrap(),
                     sgx_pck_crl_der: pck_certchain.pck_cert_crl.to_der().unwrap(),
                     ..Default::default()

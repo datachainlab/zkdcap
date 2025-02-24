@@ -2,7 +2,7 @@ pub mod version_3;
 pub mod version_4;
 
 use crate::cert::{parse_certchain, verify_crl_signature};
-use crate::collaterals::IntelCollateral;
+use crate::collateral::QvCollateral;
 use crate::crl::IntelSgxCrls;
 use crate::crypto::sha256sum;
 use crate::crypto::verify_p256_signature_bytes;
@@ -39,7 +39,7 @@ use x509_parser::certificate::X509Certificate;
 /// * `current_time` - The current time in seconds since the Unix epoch.
 pub fn verify_quote(
     quote: &Quote,
-    collateral: &IntelCollateral,
+    collateral: &QvCollateral,
     current_time: u64,
 ) -> Result<QuoteVerificationOutput> {
     match quote {
@@ -68,7 +68,7 @@ pub struct QeTcb {
 /// * `qe_report_signature` - The signature of the QE report using the PCK
 /// * `qe_auth_data` - The QE auth data
 /// * `qe_cert_data` - The QE certificate data. The cert data type must be 5.
-/// * `collaterals` - The Intel collateral data. `collaterals.intel_root_ca` is Root of Trust in the verification process
+/// * `collateral` - The QV collateral data. `collaterals.intel_root_ca` is Root of Trust in the verification process
 /// * `current_time` - The current time in seconds.
 ///
 /// # Returns
@@ -88,7 +88,7 @@ fn verify_quote_common(
     qe_report_signature: &[u8; 64],
     qe_auth_data: &[u8],
     qe_cert_data: &CertData,
-    collaterals: &IntelCollateral,
+    collateral: &QvCollateral,
     current_time: u64,
 ) -> Result<(QeTcb, SgxExtensions, TcbInfo, ValidityIntersection)> {
     // get the certchain embedded in the ecda quote signature data
@@ -109,10 +109,10 @@ fn verify_quote_common(
         (certchain.remove(0), certchain.remove(0))
     };
 
-    let intel_sgx_root_cert = collaterals.get_sgx_intel_root_ca()?;
+    let intel_sgx_root_cert = collateral.get_sgx_intel_root_ca()?;
     let intel_crls = {
-        let sgx_root_ca_crl = collaterals.get_sgx_intel_root_ca_crl()?;
-        let pck_crl = collaterals.get_sgx_pck_crl()?;
+        let sgx_root_ca_crl = collateral.get_sgx_intel_root_ca_crl()?;
+        let pck_crl = collateral.get_sgx_pck_crl()?;
 
         // check that `sgx_root_ca_crl` is signed by the root cert
         verify_crl_signature(&sgx_root_ca_crl, &intel_sgx_root_cert)
@@ -137,7 +137,7 @@ fn verify_quote_common(
     )?
     .with_other(validity);
 
-    let tcb_signing_cert = collaterals.get_sgx_tcb_signing()?;
+    let tcb_signing_cert = collateral.get_sgx_tcb_signing()?;
     let validity =
         validate_tcb_signing_certificate(&tcb_signing_cert, &intel_sgx_root_cert, &intel_crls)?
             .validate_or_error(current_time)
@@ -146,7 +146,7 @@ fn verify_quote_common(
 
     // validate tcbinfo
     let (validity, tcb_info) = {
-        let tcb_info_v3 = collaterals.get_tcbinfov3()?;
+        let tcb_info_v3 = collateral.get_tcbinfov3()?;
         let tcb_validity =
             validate_tcbinfov3(quote_header.tee_type, &tcb_info_v3, &tcb_signing_cert)?
                 .validate_or_error(current_time)
@@ -156,7 +156,7 @@ fn verify_quote_common(
 
     // validate QEIdentity
     let (validity, qeidentityv2) = {
-        let qeidentityv2 = collaterals.get_qeidentityv2()?;
+        let qeidentityv2 = collateral.get_qeidentityv2()?;
         let qe_validity =
             validate_qe_identityv2(quote_header.tee_type, &qeidentityv2, &tcb_signing_cert)?
                 .validate_or_error(current_time)
