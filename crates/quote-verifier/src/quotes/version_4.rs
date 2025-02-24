@@ -1,4 +1,4 @@
-use super::{converge_tcb_status_with_qe_tcb, validate_quote_header, verify_quote_common, Result};
+use super::{converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collaterals::IntelCollateral,
@@ -10,9 +10,10 @@ use crate::{
 use anyhow::{bail, Context};
 use core::cmp::min;
 use dcap_types::{
-    quotes::{body::QuoteBody, version_4::QuoteV4, CertDataType},
+    quotes::{body::QuoteBody, version_4::QuoteV4, CertDataType, QuoteHeader},
     tcbinfo::TcbInfo,
-    TdxModuleTcbValidationStatus, QUOTE_FORMAT_V4, SGX_TEE_TYPE, TDX_TEE_TYPE,
+    TdxModuleTcbValidationStatus, ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID, QUOTE_FORMAT_V4,
+    SGX_TEE_TYPE, TDX_TEE_TYPE,
 };
 
 /// Verify the given DCAP quote v4 and return the verification output.
@@ -26,7 +27,7 @@ pub fn verify_quote_v4(
     collaterals: &IntelCollateral,
     current_time: u64,
 ) -> Result<QuoteVerificationOutput> {
-    validate_quote_header(&quote.header, QUOTE_FORMAT_V4).context("invalid quote header")?;
+    validate_quote_header_v4(&quote.header).context("invalid quote header")?;
 
     // we'll now proceed to verify the qe
     let qe_cert_data_v4 = &quote.signature.qe_cert_data;
@@ -113,7 +114,7 @@ pub fn verify_quote_v4(
 
     Ok(QuoteVerificationOutput {
         version: VERIFIER_VERSION,
-        quote_version: quote.header.version,
+        quote_version: QUOTE_FORMAT_V4,
         tee_type,
         tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
         min_tcb_evaluation_data_number: min(
@@ -126,4 +127,18 @@ pub fn verify_quote_v4(
         quote_body: quote.quote_body,
         advisory_ids,
     })
+}
+
+fn validate_quote_header_v4(quote_header: &QuoteHeader) -> Result<()> {
+    if quote_header.version != QUOTE_FORMAT_V4 {
+        bail!("Invalid Quote Version");
+    } else if quote_header.tee_type != SGX_TEE_TYPE && quote_header.tee_type != TDX_TEE_TYPE {
+        bail!("Invalid TEE Type");
+    } else if quote_header.att_key_type != ECDSA_256_WITH_P256_CURVE {
+        bail!("Invalid att_key_type");
+    } else if quote_header.qe_vendor_id != INTEL_QE_VENDOR_ID {
+        bail!("Invalid qe_vendor_id");
+    } else {
+        Ok(())
+    }
 }

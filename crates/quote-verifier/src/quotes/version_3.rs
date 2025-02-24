@@ -1,4 +1,4 @@
-use super::{converge_tcb_status_with_qe_tcb, validate_quote_header, verify_quote_common, Result};
+use super::{converge_tcb_status_with_qe_tcb, verify_quote_common, Result};
 use crate::{
     cert::{get_sgx_tdx_tcb_status_v3, merge_advisory_ids},
     collaterals::IntelCollateral,
@@ -6,12 +6,12 @@ use crate::{
     verifier::QuoteVerificationOutput,
     VERIFIER_VERSION,
 };
-use anyhow::Context;
+use anyhow::{bail, Context};
 use core::cmp::min;
 use dcap_types::{
-    quotes::{body::QuoteBody, version_3::QuoteV3},
+    quotes::{body::QuoteBody, version_3::QuoteV3, QuoteHeader},
     tcbinfo::TcbInfo,
-    QUOTE_FORMAT_V3,
+    ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID, QUOTE_FORMAT_V3, SGX_TEE_TYPE,
 };
 
 /// Verify the given DCAP quote v3 and return the verification output.
@@ -25,10 +25,10 @@ pub fn verify_quote_v3(
     collateral: &IntelCollateral,
     current_time: u64,
 ) -> Result<QuoteVerificationOutput> {
-    validate_quote_header(&quote.header, QUOTE_FORMAT_V3).context("invalid quote header")?;
+    validate_quote_header_v3(&quote.header).context("invalid quote header")?;
 
     let quote_body = QuoteBody::SGXQuoteBody(quote.isv_enclave_report);
-    let (qe_status, sgx_extensions, tcb_info, validity) = verify_quote_common(
+    let (qe_tcb, sgx_extensions, tcb_info, validity) = verify_quote_common(
         &quote.header,
         &quote_body,
         &quote.signature.isv_enclave_report_signature,
@@ -43,22 +43,37 @@ pub fn verify_quote_v3(
     let TcbInfo::V3(tcb_info_v3) = tcb_info;
     let (tcb_status, _, tcb_advisory_ids) =
         get_sgx_tdx_tcb_status_v3(quote.header.tee_type, None, &sgx_extensions, &tcb_info_v3)?;
+    let advisory_ids = merge_advisory_ids(tcb_advisory_ids, qe_tcb.advisory_ids);
 
     Ok(QuoteVerificationOutput {
         version: VERIFIER_VERSION,
-        quote_version: quote.header.version,
+        quote_version: QUOTE_FORMAT_V3,
         tee_type: quote.header.tee_type,
-        tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_status.tcb_status),
+        tcb_status: converge_tcb_status_with_qe_tcb(tcb_status, qe_tcb.tcb_status),
         min_tcb_evaluation_data_number: min(
-            qe_status.tcb_evaluation_data_number,
+            qe_tcb.tcb_evaluation_data_number,
             tcb_info_v3.tcb_info.tcb_evaluation_data_number,
         ),
         fmspc: sgx_extensions.fmspc,
         sgx_intel_root_ca_hash: keccak256sum(collateral.sgx_intel_root_ca_der.as_ref()),
         validity,
         quote_body,
-        advisory_ids: merge_advisory_ids(tcb_advisory_ids, qe_status.advisory_ids),
+        advisory_ids,
     })
+}
+
+fn validate_quote_header_v3(quote_header: &QuoteHeader) -> Result<()> {
+    if quote_header.version != QUOTE_FORMAT_V3 {
+        bail!("Invalid Quote Version");
+    } else if quote_header.tee_type != SGX_TEE_TYPE {
+        bail!("Invalid TEE Type");
+    } else if quote_header.att_key_type != ECDSA_256_WITH_P256_CURVE {
+        bail!("Invalid att_key_type");
+    } else if quote_header.qe_vendor_id != INTEL_QE_VENDOR_ID {
+        bail!("Invalid qe_vendor_id");
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]

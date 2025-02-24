@@ -25,7 +25,6 @@ use dcap_types::quotes::{
 use dcap_types::tcbinfo::TcbInfo;
 use dcap_types::utils::parse_pem;
 use dcap_types::{EnclaveIdentityV2TcbStatus, Status, TcbInfoV3TcbStatus};
-use dcap_types::{ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID};
 use version_3::verify_quote_v3;
 use version_4::verify_quote_v4;
 use x509_parser::certificate::X509Certificate;
@@ -196,17 +195,6 @@ fn verify_quote_common(
     Ok((qe_tcb, pck_cert_sgx_extensions, tcb_info, validity))
 }
 
-fn validate_quote_header(quote_header: &QuoteHeader, expected_quote_version: u16) -> Result<()> {
-    if quote_header.version != expected_quote_version {
-        bail!("Invalid Quote Version");
-    } else if quote_header.att_key_type != ECDSA_256_WITH_P256_CURVE {
-        bail!("Invalid att_key_type");
-    } else if quote_header.qe_vendor_id != INTEL_QE_VENDOR_ID {
-        bail!("Invalid qe_vendor_id");
-    } else {
-        Ok(())
-    }
-}
 /// Verify the QE Report and return the TCB Status and Advisory IDs
 ///
 /// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/29bd3b0a3b46c1159907d656b45f378f97e7e686/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L47>
