@@ -1,13 +1,6 @@
 use risc0_binfmt::compute_image_id;
-use risc0_build::{embed_method_metadata_with_options, DockerOptions, GuestOptions};
-use std::{
-    collections::HashMap,
-    env,
-    fs::File,
-    io::Write,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use risc0_build::{embed_method_metadata_with_options, DockerOptionsBuilder, GuestOptionsBuilder};
+use std::{collections::HashMap, env, fs::File, io::Write};
 
 fn main() {
     println!("cargo:rerun-if-env-changed=ZKDCAP_RISC0_BUILD");
@@ -23,24 +16,23 @@ fn main() {
 
     // Builds can be made deterministic, and thereby reproducible, by using Docker to build the
     // guest.
-    let use_docker = Some(DockerOptions {
-        root_dir: Some("../../".into()),
-    });
+    let use_docker = DockerOptionsBuilder::default()
+        .root_dir("../../")
+        .build()
+        .unwrap();
+
+    let guest_options = GuestOptionsBuilder::default()
+        .use_docker(use_docker)
+        .build()
+        .unwrap();
 
     // Generate Rust source files for the methods crate.
-    let guests = embed_method_metadata_with_options(HashMap::from([(
-        "guests",
-        GuestOptions {
-            features: Vec::new(),
-            use_docker,
-        },
-    )]));
+    let guests = embed_method_metadata_with_options(HashMap::from([("guests", guest_options)]));
 
     if guests.len() != 1 {
         panic!("expected exactly one guest, found {}", guests.len());
     };
-    let elf_path = get_correct_elf_path(&PathBuf::from_str(&guests[0].path).unwrap());
-    let elf_value = std::fs::read(&elf_path).unwrap();
+    let elf_value = std::fs::read(guests[0].path.to_string()).unwrap();
     let image_id = compute_image_id(&elf_value).unwrap();
     let image_id_words = image_id.as_words().to_vec();
     let image_id_str = image_id.to_string();
@@ -59,29 +51,4 @@ pub const DCAP_QUOTE_VERIFIER_ELF: &[u8] = include_bytes!("../artifacts/dcap-quo
             .as_bytes(),
         )
         .unwrap();
-}
-
-fn get_correct_elf_path(elf_path: &Path) -> String {
-    elf_path
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/guests/dcap_quote_verifier")
-        .as_path()
-        .to_str()
-        .unwrap()
-        .to_string()
 }
