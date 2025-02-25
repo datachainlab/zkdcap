@@ -9,7 +9,7 @@ use anyhow::{bail, Context};
 use core::cmp::min;
 use dcap_types::{
     quotes::{body::QuoteBody, version_3::QuoteV3, QuoteHeader},
-    tcbinfo::TcbInfo,
+    tcb_info::TcbInfo,
     ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID, QUOTE_FORMAT_V3, SGX_TEE_TYPE,
 };
 
@@ -87,7 +87,7 @@ mod tests {
         enclave_report::{build_qe_auth_data, build_qe_report_data, EnclaveReportBuilder},
         quote::{build_qe_cert_data, gen_quote_v3, sign_qe_report, QuoteHeaderBuilder},
         sgx_extensions::SgxExtensionsBuilder,
-        tcbinfo::{TcbInfoV3Builder, TcbInfoV3TcbLevelBuilder, TcbInfoV3TcbLevelItemBuilder},
+        tcb_info::{TcbInfoV3Builder, TcbInfoV3TcbLevelBuilder, TcbInfoV3TcbLevelItemBuilder},
         utils::{gen_key, p256_prvkey_to_pubkey_bytes},
     };
     use dcap_types::cert::SgxExtensionTcbLevel;
@@ -182,8 +182,8 @@ mod tests {
             .unwrap();
 
         let collateral = QvCollateral {
-            tcbinfo_json: serde_json::to_vec(&tcb_info).unwrap(),
-            qeidentity_json: serde_json::to_vec(&qe_identity).unwrap(),
+            tcb_info_json: serde_json::to_vec(&tcb_info).unwrap(),
+            qe_identity_json: serde_json::to_vec(&qe_identity).unwrap(),
             sgx_intel_root_ca_der: root_ca.cert.to_der().unwrap(),
             sgx_tcb_signing_der: tcb_certchain.cert.to_der().unwrap(),
             sgx_intel_root_ca_crl_der: root_ca_crl,

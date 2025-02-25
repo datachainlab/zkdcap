@@ -75,7 +75,7 @@ impl PCSClient {
         let update_policy = self.update_policy();
 
         // get the TCB info of the platform
-        let (tcbinfo_json, sgx_tcb_signing_der) = {
+        let (tcb_info_json, sgx_tcb_signing_der) = {
             let fmspc = hex::encode_upper(sgx_extensions.fmspc);
             let res = http_get(format!(
                 "{base_url}/tcb?fmspc={fmspc}&update={update_policy}"
@@ -86,7 +86,7 @@ impl PCSClient {
         };
 
         // get the QE identity
-        let qeidentity_json = http_get(format!("{base_url}/qe/identity?update={update_policy}"))?
+        let qe_identity_json = http_get(format!("{base_url}/qe/identity?update={update_policy}"))?
             .bytes()?
             .to_vec();
 
@@ -111,8 +111,8 @@ impl PCSClient {
                 .to_vec();
 
         Ok(QvCollateral {
-            tcbinfo_json,
-            qeidentity_json,
+            tcb_info_json,
+            qe_identity_json,
             sgx_intel_root_ca_der: sgx_root_cert_der,
             sgx_tcb_signing_der,
             sgx_intel_root_ca_crl_der,

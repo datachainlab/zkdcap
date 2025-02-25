@@ -1,6 +1,6 @@
 use anyhow::bail;
 use dcap_types::enclave_identity::EnclaveIdentityV2;
-use dcap_types::tcbinfo::TcbInfoV3;
+use dcap_types::tcb_info::TcbInfoV3;
 use dcap_types::utils::{parse_crl_der, parse_x509_der};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
@@ -12,10 +12,10 @@ use crate::Result;
 pub struct QvCollateral {
     /// TCBInfo in JSON format
     /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-model-v3>
-    pub tcbinfo_json: Vec<u8>,
+    pub tcb_info_json: Vec<u8>,
     /// QEIdentity in JSON format
     /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-enclave-identity-model-v2>
-    pub qeidentity_json: Vec<u8>,
+    pub qe_identity_json: Vec<u8>,
     /// SGX Intel Root CA certificate in DER format
     /// ref. <https://certificates.trustedservices.intel.com/Intel_SGX_Provisioning_Certification_RootCA.pem>
     pub sgx_intel_root_ca_der: Vec<u8>,
@@ -42,8 +42,8 @@ impl QvCollateral {
 
         // get the total length
         let total_length = 4 * 6
-            + self.tcbinfo_json.len()
-            + self.qeidentity_json.len()
+            + self.tcb_info_json.len()
+            + self.qe_identity_json.len()
             + self.sgx_intel_root_ca_der.len()
             + self.sgx_tcb_signing_der.len()
             + self.sgx_intel_root_ca_crl_der.len()
@@ -51,15 +51,15 @@ impl QvCollateral {
 
         // create the vec and copy the data
         let mut data = Vec::with_capacity(total_length);
-        data.extend_from_slice(&(self.tcbinfo_json.len() as u32).to_le_bytes());
-        data.extend_from_slice(&(self.qeidentity_json.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(self.tcb_info_json.len() as u32).to_le_bytes());
+        data.extend_from_slice(&(self.qe_identity_json.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_intel_root_ca_der.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_tcb_signing_der.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_intel_root_ca_crl_der.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_pck_crl_der.len() as u32).to_le_bytes());
 
-        data.extend_from_slice(&self.tcbinfo_json);
-        data.extend_from_slice(&self.qeidentity_json);
+        data.extend_from_slice(&self.tcb_info_json);
+        data.extend_from_slice(&self.qe_identity_json);
         data.extend_from_slice(&self.sgx_intel_root_ca_der);
         data.extend_from_slice(&self.sgx_tcb_signing_der);
         data.extend_from_slice(&self.sgx_intel_root_ca_crl_der);
@@ -77,8 +77,8 @@ impl QvCollateral {
 
         // reverse the serialization process
         // each length is 4 bytes long, we have a total of 6 members
-        let tcbinfo_json_len = u32::from_le_bytes(slice[0..4].try_into()?) as usize;
-        let qeidentity_json_len = u32::from_le_bytes(slice[4..8].try_into()?) as usize;
+        let tcb_info_json_len = u32::from_le_bytes(slice[0..4].try_into()?) as usize;
+        let qe_identity_json_len = u32::from_le_bytes(slice[4..8].try_into()?) as usize;
         let sgx_intel_root_ca_der_len = u32::from_le_bytes(slice[8..12].try_into()?) as usize;
         let sgx_tcb_signing_der_len = u32::from_le_bytes(slice[12..16].try_into()?) as usize;
         let sgx_intel_root_ca_crl_der_len = u32::from_le_bytes(slice[16..20].try_into()?) as usize;
@@ -88,8 +88,8 @@ impl QvCollateral {
 
         if slice.len()
             < offset
-                + tcbinfo_json_len
-                + qeidentity_json_len
+                + tcb_info_json_len
+                + qe_identity_json_len
                 + sgx_intel_root_ca_der_len
                 + sgx_tcb_signing_der_len
                 + sgx_intel_root_ca_crl_der_len
@@ -98,10 +98,10 @@ impl QvCollateral {
             bail!("Invalid QvCollateral length");
         }
 
-        let tcbinfo_json = slice[offset..offset + tcbinfo_json_len].to_vec();
-        offset += tcbinfo_json_len;
-        let qeidentity_json = slice[offset..offset + qeidentity_json_len].to_vec();
-        offset += qeidentity_json_len;
+        let tcb_info_json = slice[offset..offset + tcb_info_json_len].to_vec();
+        offset += tcb_info_json_len;
+        let qe_identity_json = slice[offset..offset + qe_identity_json_len].to_vec();
+        offset += qe_identity_json_len;
         let sgx_intel_root_ca_der = slice[offset..offset + sgx_intel_root_ca_der_len].to_vec();
         offset += sgx_intel_root_ca_der_len;
         let sgx_tcb_signing_der = slice[offset..offset + sgx_tcb_signing_der_len].to_vec();
@@ -113,8 +113,8 @@ impl QvCollateral {
         offset += sgx_pck_crl_der_len;
 
         Ok(QvCollateral {
-            tcbinfo_json,
-            qeidentity_json,
+            tcb_info_json,
+            qe_identity_json,
             sgx_intel_root_ca_der,
             sgx_tcb_signing_der,
             sgx_intel_root_ca_crl_der,
@@ -123,17 +123,17 @@ impl QvCollateral {
     }
 
     /// Returns the TCBInfoV3 struct from the TCBInfo JSON bytes
-    pub fn get_tcbinfov3(&self) -> Result<TcbInfoV3> {
-        let tcbinfo: TcbInfoV3 = serde_json::from_slice(&self.tcbinfo_json)?;
-        if tcbinfo.tcb_info.version != 3 {
-            bail!("Invalid TCB Info version: {}", tcbinfo.tcb_info.version);
+    pub fn get_tcb_info_v3(&self) -> Result<TcbInfoV3> {
+        let tcb_info_v3: TcbInfoV3 = serde_json::from_slice(&self.tcb_info_json)?;
+        if tcb_info_v3.tcb_info.version != 3 {
+            bail!("Invalid TCB Info version: {}", tcb_info_v3.tcb_info.version);
         }
-        Ok(tcbinfo)
+        Ok(tcb_info_v3)
     }
 
     /// Returns the EnclaveIdentityV2 struct from the QEIdentity JSON bytes
-    pub fn get_qeidentityv2(&self) -> Result<EnclaveIdentityV2> {
-        let qe: EnclaveIdentityV2 = serde_json::from_slice(&self.qeidentity_json)?;
+    pub fn get_qe_identity_v2(&self) -> Result<EnclaveIdentityV2> {
+        let qe: EnclaveIdentityV2 = serde_json::from_slice(&self.qe_identity_json)?;
         if qe.enclave_identity.version != 2 {
             bail!(
                 "Invalid QE Identity version: {}",

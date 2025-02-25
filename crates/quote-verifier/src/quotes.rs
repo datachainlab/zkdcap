@@ -8,7 +8,7 @@ use crate::crypto::{sha256sum, verify_p256_signature_bytes};
 use crate::enclave_identity::{get_qe_tcb_status, validate_qe_identityv2};
 use crate::pck::validate_pck_cert;
 use crate::sgx_extensions::extract_sgx_extensions;
-use crate::tcbinfo::{validate_tcb_signing_certificate, validate_tcbinfov3};
+use crate::tcb_info::{validate_tcb_info_v3, validate_tcb_signing_certificate};
 use crate::verifier::{QuoteVerificationOutput, ValidityIntersection};
 use crate::Result;
 use anyhow::{bail, Context};
@@ -18,7 +18,7 @@ use dcap_types::quotes::{
     body::{EnclaveReport, QuoteBody},
     CertData, Quote, QuoteHeader,
 };
-use dcap_types::tcbinfo::TcbInfo;
+use dcap_types::tcb_info::TcbInfo;
 use dcap_types::utils::parse_pem;
 use dcap_types::EnclaveIdentityV2TcbStatus;
 use version_3::verify_quote_v3;
@@ -145,24 +145,24 @@ fn verify_quote_common(
             .context("TCB Signing Cert is not valid")?
             .with_other(validity);
 
-    // validate tcbinfo
+    // validate TCB Info
     let (validity, tcb_info) = {
-        let tcb_info_v3 = collateral.get_tcbinfov3()?;
+        let tcb_info_v3 = collateral.get_tcb_info_v3()?;
         let tcb_validity =
-            validate_tcbinfov3(quote_header.tee_type, &tcb_info_v3, &tcb_signing_cert)?
+            validate_tcb_info_v3(quote_header.tee_type, &tcb_info_v3, &tcb_signing_cert)?
                 .validate_or_error(current_time)
                 .context("TCBInfo is not valid")?;
         (validity.with_other(tcb_validity), TcbInfo::V3(tcb_info_v3))
     };
 
     // validate QEIdentity
-    let (validity, qeidentityv2) = {
-        let qeidentityv2 = collateral.get_qeidentityv2()?;
+    let (validity, qe_identity_v2) = {
+        let qe_identity_v2 = collateral.get_qe_identity_v2()?;
         let qe_validity =
-            validate_qe_identityv2(quote_header.tee_type, &qeidentityv2, &tcb_signing_cert)?
+            validate_qe_identityv2(quote_header.tee_type, &qe_identity_v2, &tcb_signing_cert)?
                 .validate_or_error(current_time)
                 .context("QEIdentity is not valid")?;
-        (validity.with_other(qe_validity), qeidentityv2)
+        (validity.with_other(qe_validity), qe_identity_v2)
     };
 
     // validate QE Report and Quote Body
@@ -170,7 +170,7 @@ fn verify_quote_common(
         qe_report,
         ecdsa_attestation_pubkey,
         qe_auth_data,
-        &qeidentityv2,
+        &qe_identity_v2,
         &pck_leaf_cert,
         qe_report_signature,
     )?;
@@ -205,14 +205,14 @@ fn verify_quote_common(
 ///
 /// do the following checks:
 /// - ensure that `ecdsa_attestation_key` and `qe_auth_data` are valid against the `qe_report.report_data`
-/// - validate the `qe_report` against the `qeidentityv2`
+/// - validate the `qe_report` against the `qe_identity_v2`
 /// - verify the signature for `qe_report` data using the `pck_leaf_cert` public key
-/// - determine the TCB Status based on the `qe_report.isv_svn` and `qeidentityv2`
+/// - determine the TCB Status based on the `qe_report.isv_svn` and `qe_identity_v2`
 fn verify_qe_report(
     qe_report: &EnclaveReport,
     ecdsa_attestation_pubkey: &[u8; 64],
     qe_auth_data: &[u8],
-    qeidentityv2: &EnclaveIdentityV2,
+    qe_identity_v2: &EnclaveIdentityV2,
     pck_leaf_cert: &X509Certificate,
     qe_report_signature: &[u8; 64],
 ) -> Result<QeTcb> {
@@ -224,7 +224,7 @@ fn verify_qe_report(
     ) {
         bail!("QE Report Data is incorrect");
     }
-    validate_qe_report(qe_report, qeidentityv2)
+    validate_qe_report(qe_report, qe_identity_v2)
         .context("QE Report values do not match with the provided QEIdentity")?;
 
     // verify the signature for qe report data
@@ -235,8 +235,10 @@ fn verify_qe_report(
     )
     .context("Invalid QE Report Signature")?;
 
-    let (tcb_status, advisory_ids) =
-        get_qe_tcb_status(qe_report.isv_svn, &qeidentityv2.enclave_identity.tcb_levels)?;
+    let (tcb_status, advisory_ids) = get_qe_tcb_status(
+        qe_report.isv_svn,
+        &qe_identity_v2.enclave_identity.tcb_levels,
+    )?;
 
     // NOTE: The reference implementation converts `TcbStatus` to `Status`, but the conversion does not give any additional information and is therefore omitted in our implementation.
     // The following points are the conversion rules in the reference implementation:
@@ -251,7 +253,7 @@ fn verify_qe_report(
     // The above three statuses are fallthrough to the default case, so there is no status conversion here.
 
     Ok(QeTcb {
-        tcb_evaluation_data_number: qeidentityv2.enclave_identity.tcb_evaluation_data_number,
+        tcb_evaluation_data_number: qe_identity_v2.enclave_identity.tcb_evaluation_data_number,
         tcb_status,
         advisory_ids,
     })
@@ -282,10 +284,10 @@ fn verify_quote_attestation(
 /// ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/EnclaveReportVerifier.cpp#L47
 fn validate_qe_report(
     enclave_report: &EnclaveReport,
-    qeidentityv2: &EnclaveIdentityV2,
+    qe_identity_v2: &EnclaveIdentityV2,
 ) -> Result<()> {
-    let miscselect_mask = qeidentityv2.enclave_identity.miscselect_mask()?;
-    let miscselect = qeidentityv2.enclave_identity.miscselect()?;
+    let miscselect_mask = qe_identity_v2.enclave_identity.miscselect_mask()?;
+    let miscselect = qe_identity_v2.enclave_identity.miscselect()?;
 
     if (enclave_report.misc_select() & miscselect_mask) != miscselect {
         bail!(
@@ -295,8 +297,8 @@ fn validate_qe_report(
         );
     }
 
-    let attributes = qeidentityv2.enclave_identity.attributes()?;
-    let attributes_mask = qeidentityv2.enclave_identity.attributes_mask()?;
+    let attributes = qe_identity_v2.enclave_identity.attributes()?;
+    let attributes_mask = qe_identity_v2.enclave_identity.attributes_mask()?;
     let masked_enclave_attributes = enclave_report
         .attributes
         .iter()
@@ -311,19 +313,19 @@ fn validate_qe_report(
         );
     }
 
-    if enclave_report.mrsigner != qeidentityv2.enclave_identity.mrsigner()? {
+    if enclave_report.mrsigner != qe_identity_v2.enclave_identity.mrsigner()? {
         bail!(
             "Enclave MrSigner does not match: {:x?} != {:x?}",
             enclave_report.mrsigner,
-            qeidentityv2.enclave_identity.mrsigner()?
+            qe_identity_v2.enclave_identity.mrsigner()?
         );
     }
 
-    if enclave_report.isv_prod_id != qeidentityv2.enclave_identity.isvprodid {
+    if enclave_report.isv_prod_id != qe_identity_v2.enclave_identity.isvprodid {
         bail!(
             "Enclave ISVProdID does not match: {:x} != {:x}",
             enclave_report.isv_prod_id,
-            qeidentityv2.enclave_identity.isvprodid
+            qe_identity_v2.enclave_identity.isvprodid
         );
     }
 

@@ -1,7 +1,7 @@
 use crate::Result;
 use anyhow::Context;
 use core::str::FromStr;
-use dcap_types::tcbinfo::TcbInfoV3;
+use dcap_types::tcb_info::TcbInfoV3;
 use dcap_types::{TcbInfoV3TcbStatus, TdxModuleTcbStatus, TdxModuleTcbValidationStatus};
 
 /// Get the TCB status of the TDX module corresponding to the given SVN.

@@ -2,7 +2,7 @@ use crate::crypto::verify_p256_signature_der;
 use anyhow::bail;
 use core::str::FromStr;
 use dcap_types::cert::{SgxExtensionTcbLevel, SgxExtensions};
-use dcap_types::tcbinfo::{TcbComponent, TcbInfoV3};
+use dcap_types::tcb_info::{TcbComponent, TcbInfoV3};
 use dcap_types::TcbInfoV3TcbStatus;
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 use x509_parser::prelude::*;
@@ -83,23 +83,23 @@ pub fn get_x509_issuer_cn(cert: &X509Certificate) -> String {
 /// * `tee_type` - The type of TEE (SGX or TDX)
 /// * `tee_tcb_svn` - The TCB SVN of the TEE (only for TDX)
 /// * `sgx_extensions` - The SGX Extensions from the PCK Certificate
-/// * `tcbinfov3` - The TCB Info V3
+/// * `tcb_info_v3` - The TCB Info V3
 /// # Returns
 /// * `(sgx_tcb_status, tdx_tcb_status, advisory_ids)` - The TCB status of the SGX and TDX, and the advisory IDs
 pub fn get_sgx_tdx_tcb_status_v3(
     tee_type: u32,
     tee_tcb_svn: Option<[u8; 16]>,
     sgx_extensions: &SgxExtensions,
-    tcbinfov3: &TcbInfoV3,
+    tcb_info_v3: &TcbInfoV3,
 ) -> crate::Result<(TcbInfoV3TcbStatus, Option<TcbInfoV3TcbStatus>, Vec<String>)> {
     if tee_type == SGX_TEE_TYPE {
-        if tcbinfov3.tcb_info.id != "SGX" {
+        if tcb_info_v3.tcb_info.id != "SGX" {
             bail!("Invalid TCB Info ID for SGX TEE Type");
         } else if tee_tcb_svn.is_some() {
             bail!("SGX TCB SVN is not needed");
         }
     } else if tee_type == TDX_TEE_TYPE {
-        if tcbinfov3.tcb_info.id != "TDX" {
+        if tcb_info_v3.tcb_info.id != "TDX" {
             bail!("Invalid TCB Info ID for TDX TEE Type");
         } else if tee_tcb_svn.is_none() {
             bail!("TDX TCB SVN is missing");
@@ -108,19 +108,19 @@ pub fn get_sgx_tdx_tcb_status_v3(
         bail!("Unsupported TEE type: {}", tee_type);
     }
 
-    if sgx_extensions.fmspc != tcbinfov3.tcb_info.fmspc()? {
+    if sgx_extensions.fmspc != tcb_info_v3.tcb_info.fmspc()? {
         // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L117
         bail!(
             "FMSPC does not match: {:x?} != {:x?}",
             sgx_extensions.fmspc,
-            tcbinfov3.tcb_info.fmspc()?
+            tcb_info_v3.tcb_info.fmspc()?
         );
-    } else if sgx_extensions.pceid != tcbinfov3.tcb_info.pce_id()? {
+    } else if sgx_extensions.pceid != tcb_info_v3.tcb_info.pce_id()? {
         // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L124
         bail!(
             "PCE ID does not match: {:x?} != {:x?}",
             sgx_extensions.pceid,
-            tcbinfov3.tcb_info.pce_id()?
+            tcb_info_v3.tcb_info.pce_id()?
         );
     }
 
@@ -128,7 +128,7 @@ pub fn get_sgx_tdx_tcb_status_v3(
     let tcb = &sgx_extensions.tcb;
     let extension_pcesvn = tcb.pcesvn;
 
-    for tcb_level in tcbinfov3.tcb_info.tcb_levels.iter() {
+    for tcb_level in tcb_info_v3.tcb_info.tcb_levels.iter() {
         if sgx_tcb_status.is_none()
             && match_sgxtcbcomp(tcb, &tcb_level.tcb.sgxtcbcomponents)
             && extension_pcesvn >= tcb_level.tcb.pcesvn

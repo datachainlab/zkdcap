@@ -6,7 +6,7 @@ pub mod enclave_identity;
 pub mod pck;
 pub mod quotes;
 pub mod sgx_extensions;
-pub mod tcbinfo;
+pub mod tcb_info;
 pub mod tdx_module;
 #[cfg(test)]
 pub mod tests;
@@ -23,10 +23,10 @@ mod quote_verifier_tests {
     use crate::collateral::QvCollateral;
     use crate::crypto::keccak256sum;
     use crate::quotes::{version_3::verify_quote_v3, version_4::verify_quote_v4};
-    use crate::tcbinfo::validate_tcbinfov3;
+    use crate::tcb_info::validate_tcb_info_v3;
     use crate::verifier::{QuoteVerificationOutput, Status};
     use dcap_types::quotes::{version_3::QuoteV3, version_4::QuoteV4};
-    use dcap_types::tcbinfo::TcbInfoV3;
+    use dcap_types::tcb_info::TcbInfoV3;
     use dcap_types::utils::{parse_crl_der, parse_pem, parse_x509_der, pem_to_der};
     use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 
@@ -43,25 +43,25 @@ mod quote_verifier_tests {
     }
 
     #[test]
-    fn test_tcbinfov3_sgx() {
-        let tcbinfov3: TcbInfoV3 =
+    fn test_tcb_info_v3_sgx() {
+        let tcb_info_v3: TcbInfoV3 =
             serde_json::from_str(include_str!("../../../data/v3/tcbinfov3_00906ED50000.json"))
                 .unwrap();
         let sgx_signing_cert_pem =
             &parse_pem(include_bytes!("../../../data/v3/signing_cert.pem")).unwrap()[0];
         let sgx_signing_cert = parse_x509_der(&sgx_signing_cert_pem.contents).unwrap();
-        assert!(validate_tcbinfov3(SGX_TEE_TYPE, &tcbinfov3, &sgx_signing_cert).is_ok());
+        assert!(validate_tcb_info_v3(SGX_TEE_TYPE, &tcb_info_v3, &sgx_signing_cert).is_ok());
     }
 
     #[test]
-    fn test_tcbinfov3_tdx() {
-        let tcbinfov3: TcbInfoV3 =
+    fn test_tcb_info_v3_tdx() {
+        let tcb_info_v3: TcbInfoV3 =
             serde_json::from_str(include_str!("../../../data/tcbinfov3_00806f050000.json"))
                 .unwrap();
         let sgx_signing_cert_pem =
             &parse_pem(include_bytes!("../../../data/signing_cert.pem")).unwrap()[0];
         let sgx_signing_cert = parse_x509_der(&sgx_signing_cert_pem.contents).unwrap();
-        assert!(validate_tcbinfov3(TDX_TEE_TYPE, &tcbinfov3, &sgx_signing_cert).is_ok());
+        assert!(validate_tcb_info_v3(TDX_TEE_TYPE, &tcb_info_v3, &sgx_signing_cert).is_ok());
     }
 
     #[test]
@@ -76,8 +76,8 @@ mod quote_verifier_tests {
     #[test]
     fn test_verifyv3() {
         let collaterals = QvCollateral {
-            tcbinfo_json: include_bytes!("../../../data/v3/tcbinfov3_00906ED50000.json").to_vec(),
-            qeidentity_json: include_bytes!("../../../data/v3/qeidentityv2.json").to_vec(),
+            tcb_info_json: include_bytes!("../../../data/v3/tcbinfov3_00906ED50000.json").to_vec(),
+            qe_identity_json: include_bytes!("../../../data/v3/qeidentityv2.json").to_vec(),
             sgx_intel_root_ca_der: include_bytes!(
                 "../../../data/Intel_SGX_Provisioning_Certification_RootCA.cer"
             )
@@ -134,8 +134,8 @@ mod quote_verifier_tests {
     #[test]
     fn test_verifyv4() {
         let collaterals = QvCollateral {
-            tcbinfo_json: include_bytes!("../../../data/v4/tcbinfov3_00806f050000.json").to_vec(),
-            qeidentity_json: include_bytes!("../../../data/v4/qeidentityv2_apiv4.json").to_vec(),
+            tcb_info_json: include_bytes!("../../../data/v4/tcbinfov3_00806f050000.json").to_vec(),
+            qe_identity_json: include_bytes!("../../../data/v4/qeidentityv2_apiv4.json").to_vec(),
             sgx_intel_root_ca_der: include_bytes!(
                 "../../../data/Intel_SGX_Provisioning_Certification_RootCA.cer"
             )

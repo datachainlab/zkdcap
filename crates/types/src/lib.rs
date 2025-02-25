@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub mod cert;
 pub mod enclave_identity;
 pub mod quotes;
-pub mod tcbinfo;
+pub mod tcb_info;
 pub mod utils;
 
 /// ref. p.68 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>

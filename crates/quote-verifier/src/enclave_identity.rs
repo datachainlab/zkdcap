@@ -64,9 +64,9 @@ pub fn validate_qe_identityv2(
 /// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/EnclaveIdentityV2.cpp#L326>
 pub fn get_qe_tcb_status(
     qe_report_isv_svn: u16,
-    qeidentityv2_tcb_levels: &[EnclaveIdentityV2TcbLevelItem],
+    qe_identity_v2_tcb_levels: &[EnclaveIdentityV2TcbLevelItem],
 ) -> Result<(EnclaveIdentityV2TcbStatus, Vec<String>)> {
-    for tcb_level in qeidentityv2_tcb_levels {
+    for tcb_level in qe_identity_v2_tcb_levels {
         if tcb_level.tcb.isvsvn <= qe_report_isv_svn {
             return Ok((
                 EnclaveIdentityV2TcbStatus::from_str(&tcb_level.tcb_status)?,

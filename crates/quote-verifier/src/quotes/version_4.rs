@@ -10,7 +10,7 @@ use anyhow::{bail, Context};
 use core::cmp::min;
 use dcap_types::{
     quotes::{body::QuoteBody, version_4::QuoteV4, CertDataType, QuoteHeader},
-    tcbinfo::TcbInfo,
+    tcb_info::TcbInfo,
     TdxModuleTcbValidationStatus, ECDSA_256_WITH_P256_CURVE, INTEL_QE_VENDOR_ID, QUOTE_FORMAT_V4,
     SGX_TEE_TYPE, TDX_TEE_TYPE,
 };
