@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Error};
 use dcap_quote_verifier::cert::{get_x509_subject_cn, parse_certchain};
-use dcap_quote_verifier::collaterals::IntelCollateral;
+use dcap_quote_verifier::collateral::QvCollateral;
 use dcap_quote_verifier::sgx_extensions::extract_sgx_extensions;
 use dcap_types::quotes::CertData;
 use dcap_types::utils::{parse_pem, pem_to_der};
@@ -48,7 +48,7 @@ impl PCSClient {
     ///
     /// # Arguments
     /// * `qe_cert_data` - The certificate data of the QE that generated the quote to be verified. The certificate data type must be 5.
-    pub fn get_collateral(&self, qe_cert_data: &CertData) -> Result<IntelCollateral, Error> {
+    pub fn get_collateral(&self, qe_cert_data: &CertData) -> Result<QvCollateral, Error> {
         let pcs_url = self.pcs_or_pccs_url.as_str();
         let certs_service_url = self.certs_service_url.as_str();
         let base_url = format!("{pcs_url}/sgx/certification/v4");
@@ -75,7 +75,7 @@ impl PCSClient {
         let update_policy = self.update_policy();
 
         // get the TCB info of the platform
-        let (tcbinfo_bytes, sgx_tcb_signing_der) = {
+        let (tcb_info_json, sgx_tcb_signing_der) = {
             let fmspc = hex::encode_upper(sgx_extensions.fmspc);
             let res = http_get(format!(
                 "{base_url}/tcb?fmspc={fmspc}&update={update_policy}"
@@ -86,7 +86,7 @@ impl PCSClient {
         };
 
         // get the QE identity
-        let qeidentity_bytes = http_get(format!("{base_url}/qe/identity?update={update_policy}"))?
+        let qe_identity_json = http_get(format!("{base_url}/qe/identity?update={update_policy}"))?
             .bytes()?
             .to_vec();
 
@@ -110,9 +110,9 @@ impl PCSClient {
                 .bytes()?
                 .to_vec();
 
-        Ok(IntelCollateral {
-            tcbinfo_bytes,
-            qeidentity_bytes,
+        Ok(QvCollateral {
+            tcb_info_json,
+            qe_identity_json,
             sgx_intel_root_ca_der: sgx_root_cert_der,
             sgx_tcb_signing_der,
             sgx_intel_root_ca_crl_der,

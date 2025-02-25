@@ -14,7 +14,7 @@ pub fn validate_qe_identityv2(
     qe_identityv2: &EnclaveIdentityV2,
     tcb_signing_pubkey: &X509Certificate,
 ) -> Result<ValidityIntersection> {
-    // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L271
+    // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L252
     if qe_identityv2.enclave_identity.version != 2 {
         bail!("Invalid Enclave Identity Version");
     } else if tee_type == SGX_TEE_TYPE {
@@ -61,12 +61,12 @@ pub fn validate_qe_identityv2(
 
 /// Get the TCB status for matching the ISV SVN of the QE report
 ///
-/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/stable/Src/AttestationLibrary/src/Verifiers/EnclaveIdentityV2.cpp#L326>
+/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/EnclaveIdentityV2.cpp#L326>
 pub fn get_qe_tcb_status(
     qe_report_isv_svn: u16,
-    qeidentityv2_tcb_levels: &[EnclaveIdentityV2TcbLevelItem],
+    qe_identity_v2_tcb_levels: &[EnclaveIdentityV2TcbLevelItem],
 ) -> Result<(EnclaveIdentityV2TcbStatus, Vec<String>)> {
-    for tcb_level in qeidentityv2_tcb_levels {
+    for tcb_level in qe_identity_v2_tcb_levels {
         if tcb_level.tcb.isvsvn <= qe_report_isv_svn {
             return Ok((
                 EnclaveIdentityV2TcbStatus::from_str(&tcb_level.tcb_status)?,

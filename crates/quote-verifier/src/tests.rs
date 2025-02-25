@@ -2,7 +2,7 @@ use dcap_collaterals::openssl::pkey::{PKeyRef, Private};
 use dcap_collaterals::utils::sign;
 use dcap_types::{
     enclave_identity::{EnclaveIdentityV2, EnclaveIdentityV2Inner},
-    tcbinfo::{TcbInfoV3, TcbInfoV3Inner},
+    tcb_info::{TcbInfoV3, TcbInfoV3Inner},
 };
 
 pub(crate) fn gen_enclave_identity(

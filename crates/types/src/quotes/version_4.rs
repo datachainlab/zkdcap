@@ -1,8 +1,14 @@
 use super::{body::*, CertData, QuoteHeader};
-use crate::{Result, ENCLAVE_REPORT_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN, TDX_TEE_TYPE};
+use crate::{
+    Result, ENCLAVE_REPORT_LEN, QUOTE_FORMAT_V4, QUOTE_HEADER_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN,
+    TDX_TEE_TYPE,
+};
 use anyhow::bail;
 
-#[derive(Clone, Debug)]
+const SGX_SIGNATURE_LEN_OFFSET: usize = QUOTE_HEADER_LEN + ENCLAVE_REPORT_LEN;
+const TDX_SIGNATURE_LEN_OFFSET: usize = QUOTE_HEADER_LEN + TD10_REPORT_LEN;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuoteV4 {
     /// Header of Quote data structure.
     /// This field is transparent (the user knows its internal structure).
@@ -17,46 +23,94 @@ pub struct QuoteV4 {
 }
 
 impl QuoteV4 {
-    /// Parse a byte slice into a `QuoteV4` structure.
-    pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
-        let header = QuoteHeader::from_bytes(&raw_bytes[0..48])?;
+    /// Parse a QuoteV4 structure from a byte slice.
+    ///
+    /// # Arguments
+    /// - `raw_bytes`: A byte slice containing the QuoteV4 structure.
+    ///
+    /// # Returns
+    /// - A tuple containing the parsed `QuoteV4` structure and the number of bytes consumed.
+    pub fn from_bytes(raw_bytes: &[u8]) -> Result<(Self, usize)> {
+        if raw_bytes.len() < QUOTE_HEADER_LEN {
+            bail!("Invalid Quote v4 length: header");
+        }
+        let header = QuoteHeader::from_bytes(&raw_bytes[..QUOTE_HEADER_LEN])?;
+        if header.version != QUOTE_FORMAT_V4 {
+            bail!(
+                "Invalid Quote version: expected {}, got {}",
+                QUOTE_FORMAT_V4,
+                header.version
+            );
+        }
         let quote_body;
-        let mut offset: usize = 48;
-        match header.tee_type {
+        let sig_len_offset = match header.tee_type {
             SGX_TEE_TYPE => {
-                offset += ENCLAVE_REPORT_LEN;
-                quote_body =
-                    QuoteBody::SGXQuoteBody(EnclaveReport::from_bytes(&raw_bytes[48..offset])?);
+                quote_body = QuoteBody::SGXQuoteBody(EnclaveReport::from_bytes(
+                    &raw_bytes[QUOTE_HEADER_LEN..SGX_SIGNATURE_LEN_OFFSET],
+                )?);
+                SGX_SIGNATURE_LEN_OFFSET
             }
             TDX_TEE_TYPE => {
-                offset += TD10_REPORT_LEN;
-                quote_body =
-                    QuoteBody::TD10QuoteBody(TD10ReportBody::from_bytes(&raw_bytes[48..offset])?);
+                quote_body = QuoteBody::TD10QuoteBody(TD10ReportBody::from_bytes(
+                    &raw_bytes[QUOTE_HEADER_LEN..TDX_SIGNATURE_LEN_OFFSET],
+                )?);
+                TDX_SIGNATURE_LEN_OFFSET
             }
             _ => {
                 bail!("Unknown TEE type")
             }
+        };
+        if raw_bytes.len() < sig_len_offset + 4 {
+            bail!("Invalid Quote v4 length: signature length field");
         }
         let signature_len = u32::from_le_bytes([
-            raw_bytes[offset],
-            raw_bytes[offset + 1],
-            raw_bytes[offset + 2],
-            raw_bytes[offset + 3],
+            raw_bytes[sig_len_offset],
+            raw_bytes[sig_len_offset + 1],
+            raw_bytes[sig_len_offset + 2],
+            raw_bytes[sig_len_offset + 3],
         ]);
-        offset += 4;
-        let signature_slice = &raw_bytes[offset..offset + signature_len as usize];
-        let signature = QuoteSignatureDataV4::from_bytes(signature_slice)?;
+        let sig_slice_offset = sig_len_offset + 4;
+        if raw_bytes.len() < sig_slice_offset + signature_len as usize {
+            bail!(
+                "Invalid Quote v4 length: signature data: expected {}, got {}",
+                signature_len,
+                raw_bytes.len() - sig_slice_offset,
+            );
+        }
+        let quote_end_offset = sig_slice_offset + signature_len as usize;
+        let signature =
+            QuoteSignatureDataV4::from_bytes(&raw_bytes[sig_slice_offset..quote_end_offset])?;
 
-        Ok(QuoteV4 {
-            header,
-            quote_body,
-            signature_len,
-            signature,
-        })
+        Ok((
+            QuoteV4 {
+                header,
+                quote_body,
+                signature_len,
+                signature,
+            },
+            quote_end_offset,
+        ))
+    }
+
+    /// Serialize the `QuoteV4` structure to bytes.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut output_vec = Vec::new();
+        output_vec.extend_from_slice(&self.header.to_bytes());
+        match &self.quote_body {
+            QuoteBody::SGXQuoteBody(body) => {
+                output_vec.extend_from_slice(&body.to_bytes());
+            }
+            QuoteBody::TD10QuoteBody(body) => {
+                output_vec.extend_from_slice(&body.to_bytes());
+            }
+        }
+        output_vec.extend_from_slice(&self.signature_len.to_le_bytes());
+        output_vec.extend_from_slice(&self.signature.to_bytes());
+        output_vec
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuoteSignatureDataV4 {
     /// ECDSA signature, the r component followed by the s component, 2 x 32 bytes.
     pub quote_signature: [u8; 64],
@@ -84,5 +138,112 @@ impl QuoteSignatureDataV4 {
             ecdsa_attestation_key,
             qe_cert_data,
         })
+    }
+
+    /// Serialize the `QuoteSignatureDataV4` structure to bytes.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut output_vec = Vec::new();
+        output_vec.extend_from_slice(&self.quote_signature);
+        output_vec.extend_from_slice(&self.ecdsa_attestation_key);
+        output_vec.extend_from_slice(&self.qe_cert_data.to_bytes());
+        output_vec
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quotes::{
+        body::tests::{enclave_report_strategy, td10_report_body_strategy},
+        tests::{qe_report_cert_data_strategy, quote_header_strategy},
+        Quote,
+    };
+    use proptest::prelude::*;
+
+    const RAW_QUOTE_V4: &[u8] = include_bytes!("../../../../data/v4/quote.dat");
+
+    #[test]
+    fn test_quote_v4() {
+        let (quote, consumed) = QuoteV4::from_bytes(RAW_QUOTE_V4).unwrap();
+        assert_eq!(consumed, RAW_QUOTE_V4.len());
+        assert_eq!(quote.header.version, 4);
+
+        let serialized_quote = quote.to_bytes();
+        assert_eq!(RAW_QUOTE_V4.to_vec(), serialized_quote);
+
+        let (quote, consumed) = Quote::from_bytes(RAW_QUOTE_V4).unwrap();
+        assert_eq!(consumed, RAW_QUOTE_V4.len());
+        let serialized_quote2 = quote.to_bytes();
+        assert_eq!(RAW_QUOTE_V4.to_vec(), serialized_quote2);
+        assert_eq!(serialized_quote, serialized_quote2);
+    }
+
+    proptest! {
+        #[test]
+        fn test_quote_v4_tdx_roudtrip(quote in quote_v4_strategy(TDX_TEE_TYPE)) {
+            let serialized_quote = quote.to_bytes();
+            let res = QuoteV4::from_bytes(&serialized_quote);
+            prop_assert!(res.is_ok(), "{:?}", res.err());
+            let (deserialized_quote, consumed) = res.unwrap();
+            prop_assert_eq!(consumed, serialized_quote.len());
+            prop_assert_eq!(quote, deserialized_quote);
+        }
+
+        #[test]
+        fn test_quote_v4_sgx_roudtrip(quote in quote_v4_strategy(TDX_TEE_TYPE)) {
+            let serialized_quote = quote.to_bytes();
+            let res = QuoteV4::from_bytes(&serialized_quote);
+            prop_assert!(res.is_ok(), "{:?}", res.err());
+            let (deserialized_quote, consumed) = res.unwrap();
+            prop_assert_eq!(consumed, serialized_quote.len());
+            prop_assert_eq!(quote, deserialized_quote);
+        }
+
+        #[test]
+        fn test_quote_signature_data_v4_roundtrip(signature_data in quote_signature_data_v4_strategy()) {
+            let serialized_signature_data = signature_data.to_bytes();
+            let deserialized_signature_data = QuoteSignatureDataV4::from_bytes(&serialized_signature_data).unwrap();
+            prop_assert_eq!(signature_data, deserialized_signature_data);
+        }
+    }
+
+    pub(crate) fn quote_v4_strategy(tee_type: u32) -> impl Strategy<Value = QuoteV4> {
+        (
+            quote_header_strategy(Some(QUOTE_FORMAT_V4), Some(tee_type)),
+            quote_body_strategy(tee_type),
+            quote_signature_data_v4_strategy(),
+        )
+            .prop_map(|(header, quote_body, signature)| QuoteV4 {
+                header,
+                quote_body,
+                signature_len: signature.to_bytes().len().try_into().unwrap(),
+                signature,
+            })
+    }
+
+    pub(crate) fn quote_body_strategy(tee_type: u32) -> impl Strategy<Value = QuoteBody> {
+        (enclave_report_strategy(), td10_report_body_strategy()).prop_map(
+            move |(enclave_report, td10_report)| match tee_type {
+                SGX_TEE_TYPE => QuoteBody::SGXQuoteBody(enclave_report),
+                TDX_TEE_TYPE => QuoteBody::TD10QuoteBody(td10_report),
+                _ => panic!("Unknown TEE type"),
+            },
+        )
+    }
+
+    pub(crate) fn quote_signature_data_v4_strategy() -> impl Strategy<Value = QuoteSignatureDataV4>
+    {
+        (
+            any::<[u8; 64]>(),
+            any::<[u8; 64]>(),
+            qe_report_cert_data_strategy(),
+        )
+            .prop_map(|(quote_signature, ecdsa_attestation_key, qe_cert_data)| {
+                QuoteSignatureDataV4 {
+                    quote_signature,
+                    ecdsa_attestation_key,
+                    qe_cert_data: CertData::new(6, qe_cert_data.to_bytes()),
+                }
+            })
     }
 }

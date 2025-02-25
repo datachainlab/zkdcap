@@ -6,7 +6,13 @@ use x509_parser::der_parser::asn1_rs::{Boolean, Enumerated, Integer, OctetString
 use x509_parser::der_parser::{oid, Oid};
 use x509_parser::prelude::FromDer;
 
-pub fn extract_sgx_extensions<'a>(pck_cert: &'a X509Certificate<'a>) -> Result<SgxExtensions> {
+/// Extract the SGX Extensions from the given PCK certificate
+///
+/// ref. p.11-14 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf>
+///
+/// # Arguments
+/// - `pck_cert`: The PCK certificate from which to extract the SGX Extensions
+pub fn extract_sgx_extensions(pck_cert: &X509Certificate<'_>) -> Result<SgxExtensions> {
     let sgx_extensions_bytes = pck_cert
         .get_extension_unique(&oid!(1.2.840 .113741 .1 .13 .1))?
         .context("SGX Extensions not found")?
@@ -14,10 +20,13 @@ pub fn extract_sgx_extensions<'a>(pck_cert: &'a X509Certificate<'a>) -> Result<S
     parse_sgx_extensions(sgx_extensions_bytes)
 }
 
-/// Parse the SGX Extensions from the DER-encoded bytes and returns an `SgxExtensions` structure.
+/// Parse the SGX Extensions from the DER-encoded bytes
+///
+/// ref. p.11-14 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf>
+///
+/// # Arguments
+/// - `sgx_extensions_bytes`: The DER-encoded bytes of the SGX Extensions
 pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions> {
-    // p.11-14 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf>
-
     // <SGX Extensions OID>:
     //     <PPID OID>: <PPID value>
     //     <TCB OID>:
@@ -44,7 +53,7 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
     // ...
     // SGX TCB Comp16 SVN   | 1.2.840.113741.1.13.1.2.16 | mandatory | ASN.1 Integer
     // PCESVN               | 1.2.840.113741.1.13.1.2.17 | mandatory | ASN.1 Integer
-    // CPUSVN               | 1.2.840.113741.1.13.1.2.18 | mandatory | ASN.1 Integer
+    // CPUSVN               | 1.2.840.113741.1.13.1.2.18 | mandatory | ASN.1 Octet String
     // PCE-ID               | 1.2.840.113741.1.13.1.3    | mandatory | ASN.1 Octet String
     // FMSPC                | 1.2.840.113741.1.13.1.4    | mandatory | ASN.1 Octet String
     // SGX Type             | 1.2.840.113741.1.13.1.5    | mandatory | ASN.1 Enumerated
@@ -206,9 +215,32 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
     })
 }
 
+/// Parses an ASN.1 field (a SEQUENCE containing an OID and an Integer) and returns the u8 value.
+fn parse_asn1_field_u8<'a>(input: &'a [u8], expected_oid: &'a str) -> Result<(&'a [u8], u8)> {
+    parse_asn1_field_integer(input, expected_oid, |i| {
+        i.as_u8()
+            .map_err(|_| anyhow!("Integer value out of range for u8"))
+    })
+}
+
+/// Parses an ASN.1 field (a SEQUENCE containing an OID and an Integer) and returns the u16 value.
+fn parse_asn1_field_u16<'a>(input: &'a [u8], expected_oid: &'a str) -> Result<(&'a [u8], u16)> {
+    parse_asn1_field_integer(input, expected_oid, |i| {
+        i.as_u16()
+            .map_err(|_| anyhow!("Integer value out of range for u16"))
+    })
+}
+
 /// Parses an ASN.1 field (a SEQUENCE containing an OID and an Integer) and returns the integer value.
 /// It verifies that the OID matches the expected value.
-fn parse_asn1_field_uint<'a>(input: &'a [u8], expected_oid: &'a str) -> Result<(&'a [u8], u64)> {
+fn parse_asn1_field_integer<'a, T, F>(
+    input: &'a [u8],
+    expected_oid: &str,
+    f: F,
+) -> Result<(&'a [u8], T)>
+where
+    F: FnOnce(Integer) -> Result<T>,
+{
     let (remaining, seq) = Sequence::from_der(input).map_err(|e| {
         anyhow!(
             "Failed to parse sequence for field {}: {:?}",
@@ -216,8 +248,7 @@ fn parse_asn1_field_uint<'a>(input: &'a [u8], expected_oid: &'a str) -> Result<(
             e
         )
     })?;
-    let content = seq.content.as_ref();
-    let (value, oid) = Oid::from_der(content)
+    let (value, oid) = Oid::from_der(seq.content.as_ref())
         .map_err(|e| anyhow!("Failed to parse OID for field {}: {:?}", expected_oid, e))?;
     if oid.to_id_string() != expected_oid {
         return Err(anyhow!(
@@ -239,10 +270,7 @@ fn parse_asn1_field_uint<'a>(input: &'a [u8], expected_oid: &'a str) -> Result<(
             expected_oid
         ));
     }
-    let i = integer
-        .as_u64()
-        .context("Failed to convert integer to u64")?;
-    Ok((remaining, i))
+    Ok((remaining, f(integer)?))
 }
 
 /// Parses an ASN.1 field (a SEQUENCE containing an OID and an OctetString) and returns the bytes.
@@ -286,39 +314,39 @@ fn parse_asn1_field_octets<'a>(
 fn parse_tcb_level(input: &[u8]) -> Result<SgxExtensionTcbLevel> {
     let mut rem = input;
 
-    let (r, comp01) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.1")?;
+    let (r, sgxtcbcomp01svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.1")?;
     rem = r;
-    let (r, comp02) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.2")?;
+    let (r, sgxtcbcomp02svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.2")?;
     rem = r;
-    let (r, comp03) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.3")?;
+    let (r, sgxtcbcomp03svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.3")?;
     rem = r;
-    let (r, comp04) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.4")?;
+    let (r, sgxtcbcomp04svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.4")?;
     rem = r;
-    let (r, comp05) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.5")?;
+    let (r, sgxtcbcomp05svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.5")?;
     rem = r;
-    let (r, comp06) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.6")?;
+    let (r, sgxtcbcomp06svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.6")?;
     rem = r;
-    let (r, comp07) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.7")?;
+    let (r, sgxtcbcomp07svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.7")?;
     rem = r;
-    let (r, comp08) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.8")?;
+    let (r, sgxtcbcomp08svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.8")?;
     rem = r;
-    let (r, comp09) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.9")?;
+    let (r, sgxtcbcomp09svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.9")?;
     rem = r;
-    let (r, comp10) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.10")?;
+    let (r, sgxtcbcomp10svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.10")?;
     rem = r;
-    let (r, comp11) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.11")?;
+    let (r, sgxtcbcomp11svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.11")?;
     rem = r;
-    let (r, comp12) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.12")?;
+    let (r, sgxtcbcomp12svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.12")?;
     rem = r;
-    let (r, comp13) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.13")?;
+    let (r, sgxtcbcomp13svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.13")?;
     rem = r;
-    let (r, comp14) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.14")?;
+    let (r, sgxtcbcomp14svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.14")?;
     rem = r;
-    let (r, comp15) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.15")?;
+    let (r, sgxtcbcomp15svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.15")?;
     rem = r;
-    let (r, comp16) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.16")?;
+    let (r, sgxtcbcomp16svn) = parse_asn1_field_u8(rem, "1.2.840.113741.1.13.1.2.16")?;
     rem = r;
-    let (r, pcesvn) = parse_asn1_field_uint(rem, "1.2.840.113741.1.13.1.2.17")?;
+    let (r, pcesvn) = parse_asn1_field_u16(rem, "1.2.840.113741.1.13.1.2.17")?;
     rem = r;
     let (r, cpusvn_vec) = parse_asn1_field_octets(rem, "1.2.840.113741.1.13.1.2.18")?;
     rem = r;
@@ -336,23 +364,23 @@ fn parse_tcb_level(input: &[u8]) -> Result<SgxExtensionTcbLevel> {
     cpusvn.copy_from_slice(&cpusvn_vec);
 
     Ok(SgxExtensionTcbLevel {
-        sgxtcbcomp01svn: comp01 as u8,
-        sgxtcbcomp02svn: comp02 as u8,
-        sgxtcbcomp03svn: comp03 as u8,
-        sgxtcbcomp04svn: comp04 as u8,
-        sgxtcbcomp05svn: comp05 as u8,
-        sgxtcbcomp06svn: comp06 as u8,
-        sgxtcbcomp07svn: comp07 as u8,
-        sgxtcbcomp08svn: comp08 as u8,
-        sgxtcbcomp09svn: comp09 as u8,
-        sgxtcbcomp10svn: comp10 as u8,
-        sgxtcbcomp11svn: comp11 as u8,
-        sgxtcbcomp12svn: comp12 as u8,
-        sgxtcbcomp13svn: comp13 as u8,
-        sgxtcbcomp14svn: comp14 as u8,
-        sgxtcbcomp15svn: comp15 as u8,
-        sgxtcbcomp16svn: comp16 as u8,
-        pcesvn: pcesvn as u16,
+        sgxtcbcomp01svn,
+        sgxtcbcomp02svn,
+        sgxtcbcomp03svn,
+        sgxtcbcomp04svn,
+        sgxtcbcomp05svn,
+        sgxtcbcomp06svn,
+        sgxtcbcomp07svn,
+        sgxtcbcomp08svn,
+        sgxtcbcomp09svn,
+        sgxtcbcomp10svn,
+        sgxtcbcomp11svn,
+        sgxtcbcomp12svn,
+        sgxtcbcomp13svn,
+        sgxtcbcomp14svn,
+        sgxtcbcomp15svn,
+        sgxtcbcomp16svn,
+        pcesvn,
         cpusvn,
     })
 }
@@ -407,15 +435,30 @@ mod tests {
 
     #[test]
     fn test_extract_sgx_extensions_processor() {
-        let extension_bytes = hex::decode("308201C0301E060A2A864886F84D010D010104100000000000000000000000000000000030820163060A2A864886F84D010D0102308201533010060B2A864886F84D010D0102010201003010060B2A864886F84D010D0102020201003010060B2A864886F84D010D0102030201003010060B2A864886F84D010D0102040201003010060B2A864886F84D010D0102050201003010060B2A864886F84D010D0102060201003010060B2A864886F84D010D0102070201003010060B2A864886F84D010D0102080201003010060B2A864886F84D010D0102090201003010060B2A864886F84D010D01020A0201003010060B2A864886F84D010D01020B0201003010060B2A864886F84D010D01020C0201003010060B2A864886F84D010D01020D0201003010060B2A864886F84D010D01020E0201003010060B2A864886F84D010D01020F0201003010060B2A864886F84D010D0102100201003010060B2A864886F84D010D010211020100301F060B2A864886F84D010D0102120410000000000000000000000000000000003010060A2A864886F84D010D0103040200003014060A2A864886F84D010D0104040600606A000000300F060A2A864886F84D010D01050A0100").unwrap();
+        let extension_bytes = hex::decode("308201C1301E060A2A864886F84D010D010104100D88AD89FEC7F27070560D87FBC3CE1A30820164060A2A864886F84D010D0102308201543010060B2A864886F84D010D0102010201153010060B2A864886F84D010D0102020201153010060B2A864886F84D010D0102030201023010060B2A864886F84D010D0102040201043010060B2A864886F84D010D0102050201013011060B2A864886F84D010D010206020200803010060B2A864886F84D010D01020702010E3010060B2A864886F84D010D0102080201003010060B2A864886F84D010D0102090201003010060B2A864886F84D010D01020A0201003010060B2A864886F84D010D01020B0201003010060B2A864886F84D010D01020C0201003010060B2A864886F84D010D01020D0201003010060B2A864886F84D010D01020E0201003010060B2A864886F84D010D01020F0201003010060B2A864886F84D010D0102100201003010060B2A864886F84D010D01021102010D301F060B2A864886F84D010D01021204101515020401800E0000000000000000003010060A2A864886F84D010D0103040200003014060A2A864886F84D010D0104040600906ED50000300F060A2A864886F84D010D01050A0100").unwrap();
         let res = parse_sgx_extensions(&extension_bytes);
         assert!(res.is_ok(), "{:?}", res);
 
         let extensions = res.unwrap();
+        assert_eq!(extensions.sgx_type, 0);
+        assert_eq!(
+            extensions.tcb.sgxtcbcompsvns(), // 16 elements
+            [21, 21, 2, 4, 1, 128, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
+        assert_eq!(
+            extensions.ppid,
+            [13, 136, 173, 137, 254, 199, 242, 112, 112, 86, 13, 135, 251, 195, 206, 26]
+        );
+        assert_eq!(extensions.fmspc, [0, 144, 110, 213, 0, 0]);
+        assert_eq!(extensions.pceid, [0, 0]);
+        assert_eq!(extensions.tcb.pcesvn, 13);
+        assert_eq!(
+            extensions.tcb.cpusvn,
+            [21, 21, 2, 4, 1, 128, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
+        assert!(extensions.configuration.is_none());
         let bytes = sgx_extensions_to_bytes(&extensions).unwrap();
         assert_eq!(extension_bytes, bytes);
-        assert_eq!(extensions.sgx_type, 0);
-        assert!(extensions.configuration.is_none());
     }
 
     #[test]
@@ -429,6 +472,21 @@ mod tests {
         assert_eq!(extension_bytes, bytes);
 
         assert_eq!(extensions.sgx_type, 1);
+        assert_eq!(
+            extensions.tcb.sgxtcbcompsvns(), // 16 elements
+            [12, 12, 3, 3, 255, 255, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
+        assert_eq!(
+            extensions.ppid,
+            [37, 248, 225, 218, 79, 232, 34, 208, 79, 15, 241, 80, 37, 147, 31, 73]
+        );
+        assert_eq!(extensions.fmspc, [0, 96, 106, 0, 0, 0]);
+        assert_eq!(extensions.pceid, [0, 0]);
+        assert_eq!(extensions.tcb.pcesvn, 13);
+        assert_eq!(
+            extensions.tcb.cpusvn,
+            [12, 12, 3, 3, 255, 255, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
         assert!(extensions.configuration.is_some());
         let configuration = extensions.configuration.unwrap();
         assert!(configuration.dynamic_platform.is_some());

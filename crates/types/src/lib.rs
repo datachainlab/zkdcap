@@ -1,17 +1,20 @@
 use anyhow::bail;
-use core::fmt::Display;
 use core::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 pub mod cert;
 pub mod enclave_identity;
 pub mod quotes;
-pub mod tcbinfo;
+pub mod tcb_info;
 pub mod utils;
 
-// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
+/// ref. p.68 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
+pub const QUOTE_FORMAT_V3: u16 = 3;
+/// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
+pub const QUOTE_FORMAT_V4: u16 = 4;
+/// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
 pub const SGX_TEE_TYPE: u32 = 0x00000000;
-// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
+/// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
 pub const TDX_TEE_TYPE: u32 = 0x00000081;
 
 /// ref. p.68 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
@@ -20,6 +23,8 @@ pub const ECDSA_256_WITH_P256_CURVE: u16 = 2;
 pub const INTEL_QE_VENDOR_ID: [u8; 16] = [
     0x93, 0x9A, 0x72, 0x33, 0xF7, 0x9C, 0x4C, 0xA9, 0x94, 0x0A, 0x0D, 0xB3, 0x95, 0x7F, 0x06, 0x07,
 ];
+/// ref. p.67 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
+pub const QUOTE_HEADER_LEN: usize = 48;
 /// ref. p.69 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
 pub const ENCLAVE_REPORT_LEN: usize = 384;
 /// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
@@ -129,71 +134,4 @@ pub enum TdxModuleTcbValidationStatus {
     TcbOutOfDateConfigurationNeeded,
     TcbNotSupported,
     TcbUnrecognizedStatus,
-}
-
-/// Status for quote verification result
-/// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/10176d4833d72d34f287d00a27c63d757a3c1f99/Src/AttestationLibrary/include/SgxEcdsaAttestation/QuoteVerification.h#L66>
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(u8)]
-pub enum Status {
-    Ok = 0,
-    TcbOutOfDate = 1,
-    TcbRevoked = 2,
-    TcbConfigurationNeeded = 3,
-    TcbOutOfDateConfigurationNeeded = 4,
-    TcbSwHardenningNeeded = 5,
-    TcbConfigurationAndSwHardenningNeeded = 6,
-}
-
-impl Status {
-    /// Convert the status to u8
-    pub fn as_u8(&self) -> u8 {
-        *self as u8
-    }
-
-    /// Convert u8 to Status
-    pub fn from_u8(u: u8) -> Result<Self> {
-        Ok(match u {
-            0 => Status::Ok,
-            1 => Status::TcbOutOfDate,
-            2 => Status::TcbRevoked,
-            3 => Status::TcbConfigurationNeeded,
-            4 => Status::TcbOutOfDateConfigurationNeeded,
-            5 => Status::TcbSwHardenningNeeded,
-            6 => Status::TcbConfigurationAndSwHardenningNeeded,
-            _ => bail!("unrecognized Status: {}", u),
-        })
-    }
-}
-
-impl Display for Status {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let status_str = match self {
-            Status::Ok => "UpToDate",
-            Status::TcbOutOfDate => "OutOfDate",
-            Status::TcbRevoked => "Revoked",
-            Status::TcbConfigurationNeeded => "ConfigurationNeeded",
-            Status::TcbOutOfDateConfigurationNeeded => "OutOfDateConfigurationNeeded",
-            Status::TcbSwHardenningNeeded => "SWHardeningNeeded",
-            Status::TcbConfigurationAndSwHardenningNeeded => "ConfigurationAndSWHardeningNeeded",
-        };
-        write!(f, "{}", status_str)
-    }
-}
-
-impl FromStr for Status {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        Ok(match s {
-            "UpToDate" => Status::Ok,
-            "OutOfDate" => Status::TcbOutOfDate,
-            "Revoked" => Status::TcbRevoked,
-            "ConfigurationNeeded" => Status::TcbConfigurationNeeded,
-            "OutOfDateConfigurationNeeded" => Status::TcbOutOfDateConfigurationNeeded,
-            "SWHardeningNeeded" => Status::TcbSwHardenningNeeded,
-            "ConfigurationAndSWHardeningNeeded" => Status::TcbConfigurationAndSwHardenningNeeded,
-            _ => bail!("unrecognized Status: {}", s),
-        })
-    }
 }

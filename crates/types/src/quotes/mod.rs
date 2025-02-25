@@ -1,14 +1,61 @@
 use crate::{
     utils::{parse_x509_der_multi, pem_to_der},
-    Result,
+    Result, QUOTE_HEADER_LEN,
 };
 
 pub mod body;
 pub mod version_3;
 pub mod version_4;
 
+use anyhow::bail;
 use body::EnclaveReport;
+use version_3::QuoteV3;
+use version_4::QuoteV4;
 use x509_parser::prelude::X509Certificate;
+
+/// Quote is a structure that represents a quote from the DCAP library.
+/// It can be of version 3 or 4.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Quote {
+    V3(QuoteV3),
+    V4(QuoteV4),
+}
+
+impl Quote {
+    /// Parse a byte slice into a `Quote` structure.
+    pub fn from_bytes(bytes: &[u8]) -> Result<(Self, usize)> {
+        if bytes.len() < QUOTE_HEADER_LEN {
+            bail!("Invalid quote length");
+        }
+        let version = u16::from_le_bytes([bytes[0], bytes[1]]);
+        match version {
+            3 => Ok(QuoteV3::from_bytes(bytes).map(|(quote, consumed)| (quote.into(), consumed))?),
+            4 => Ok(QuoteV4::from_bytes(bytes).map(|(quote, consumed)| (quote.into(), consumed))?),
+            _ => bail!("Unsupported quote version: {}", version),
+        }
+    }
+
+    /// Convert the `Quote` structure into a byte vector.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Quote::V3(quote) => quote.to_bytes(),
+            Quote::V4(quote) => quote.to_bytes(),
+        }
+    }
+}
+
+impl From<QuoteV3> for Quote {
+    fn from(quote: QuoteV3) -> Self {
+        Quote::V3(quote)
+    }
+}
+
+impl From<QuoteV4> for Quote {
+    fn from(quote: QuoteV4) -> Self {
+        Quote::V4(quote)
+    }
+}
 
 /// QuoteHeader is the header of the quote data structure.
 ///
@@ -34,8 +81,8 @@ pub struct QuoteHeader {
 impl QuoteHeader {
     /// Parse a QuoteHeader from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
-        if raw_bytes.len() < 48 {
-            return Err(anyhow::anyhow!("QuoteHeader is too short"));
+        if raw_bytes.len() != QUOTE_HEADER_LEN {
+            return Err(anyhow::anyhow!("Invalid QuoteHeader length"));
         }
         let version = u16::from_le_bytes([raw_bytes[0], raw_bytes[1]]);
         let att_key_type = u16::from_le_bytes([raw_bytes[2], raw_bytes[3]]);
@@ -139,6 +186,16 @@ pub struct CertData {
 }
 
 impl CertData {
+    /// Create a new CertData instance.
+    pub fn new(cert_data_type: u16, cert_data: Vec<u8>) -> Self {
+        let cert_data_size = cert_data.len() as u32;
+        CertData {
+            cert_data_type,
+            cert_data_size,
+            cert_data,
+        }
+    }
+
     /// Parse a CertData from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
         let len = raw_bytes.len();
@@ -185,6 +242,8 @@ impl CertData {
     }
 }
 
+/// CertDataType is a type that represents the different types of certification data.
+/// Please refer to the doc of `CertData.cert_data_type` field for more information.
 #[allow(clippy::large_enum_variant)]
 pub enum CertDataType {
     Unused,
@@ -273,7 +332,7 @@ pub(crate) mod tests {
 
     proptest! {
         #[test]
-        fn test_quote_header_roundtrip(quote_header in quote_header_strategy()) {
+        fn test_quote_header_roundtrip(quote_header in quote_header_strategy(None, None)) {
             let raw_bytes = quote_header.to_bytes();
             let parsed_quote_header = QuoteHeader::from_bytes(&raw_bytes).unwrap();
             prop_assert_eq!(quote_header, parsed_quote_header, "raw_bytes: {:?}", raw_bytes);
@@ -301,7 +360,10 @@ pub(crate) mod tests {
         }
     }
 
-    pub(crate) fn quote_header_strategy() -> impl Strategy<Value = QuoteHeader> {
+    pub(crate) fn quote_header_strategy(
+        version: Option<u16>,
+        tee_type: Option<u32>,
+    ) -> impl Strategy<Value = QuoteHeader> {
         (
             any::<u16>(),
             any::<u16>(),
@@ -312,11 +374,19 @@ pub(crate) mod tests {
             any::<[u8; 20]>(),
         )
             .prop_map(
-                |(version, att_key_type, tee_type, qe_svn, pce_svn, qe_vendor_id, user_data)| {
+                move |(
+                    version_,
+                    att_key_type,
+                    tee_type_,
+                    qe_svn,
+                    pce_svn,
+                    qe_vendor_id,
+                    user_data,
+                )| {
                     QuoteHeader {
-                        version,
+                        version: version.unwrap_or(version_),
                         att_key_type,
-                        tee_type,
+                        tee_type: tee_type.unwrap_or(tee_type_),
                         qe_svn,
                         pce_svn,
                         qe_vendor_id,

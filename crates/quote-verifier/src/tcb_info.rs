@@ -4,7 +4,7 @@ use crate::verifier::ValidityIntersection;
 use crate::Result;
 use anyhow::{bail, Context};
 use dcap_types::cert::SGX_TCB_SIGNING_CERT_CN;
-use dcap_types::tcbinfo::TcbInfoV3;
+use dcap_types::tcb_info::TcbInfoV3;
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 use x509_parser::prelude::X509Certificate;
 
@@ -54,20 +54,20 @@ pub fn validate_tcb_signing_certificate(
  * - Check that the TCB Info V3 structure is valid for the current time
  * - Return the validity periods of the TCB Info V3 structure
  */
-pub fn validate_tcbinfov3(
+pub fn validate_tcb_info_v3(
     tee_type: u32,
-    tcbinfov3: &TcbInfoV3,
+    tcb_info_v3: &TcbInfoV3,
     tcb_signing_cert: &X509Certificate,
 ) -> Result<ValidityIntersection> {
-    // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/7e5b2a13ca5472de8d97dd7d7024c2ea5af9a6ba/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L96
-    if tcbinfov3.tcb_info.version != 3 {
+    // ref. https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/QuoteVerifier.cpp#L96
+    if tcb_info_v3.tcb_info.version != 3 {
         bail!("Invalid TCB Info Version");
     } else if tee_type == SGX_TEE_TYPE {
-        if tcbinfov3.tcb_info.id != "SGX" {
+        if tcb_info_v3.tcb_info.id != "SGX" {
             bail!("Invalid TCB Info ID for SGX TEE Type");
         }
     } else if tee_type == TDX_TEE_TYPE {
-        if tcbinfov3.tcb_info.id != "TDX" {
+        if tcb_info_v3.tcb_info.id != "TDX" {
             bail!("Invalid TCB Info ID for TDX TEE Type");
         }
     } else {
@@ -76,20 +76,20 @@ pub fn validate_tcbinfov3(
 
     // signature is a hex string, we'll convert it to bytes
     // we assume that the signature is a P256 ECDSA signature
-    let tcbinfov3_signature_bytes = hex::decode(&tcbinfov3.signature)?;
+    let tcb_info_v3_signature_bytes = hex::decode(&tcb_info_v3.signature)?;
 
     // verify that the tcb_info_root is signed by the root cert
-    let tcbinfov3_signature_data = serde_json::to_vec(&tcbinfov3.tcb_info)?;
+    let tcb_info_v3_signature_data = serde_json::to_vec(&tcb_info_v3.tcb_info)?;
     verify_p256_signature_bytes(
-        &tcbinfov3_signature_data,
-        &tcbinfov3_signature_bytes,
+        &tcb_info_v3_signature_data,
+        &tcb_info_v3_signature_bytes,
         tcb_signing_cert.public_key().subject_public_key.as_ref(),
     )
     .context("TCB Info signature is invalid")?;
 
     Ok(ValidityIntersection {
-        not_before_max: tcbinfov3.tcb_info.issue_date()?.timestamp().try_into()?,
-        not_after_min: tcbinfov3.tcb_info.next_update()?.timestamp().try_into()?,
+        not_before_max: tcb_info_v3.tcb_info.issue_date()?.timestamp().try_into()?,
+        not_after_min: tcb_info_v3.tcb_info.next_update()?.timestamp().try_into()?,
     })
 }
 
@@ -245,7 +245,7 @@ mod tests {
             gen_tcb_info_v3(&tcb_signing_pkey, tcb_info).unwrap()
         };
 
-        let res = validate_tcbinfov3(
+        let res = validate_tcb_info_v3(
             SGX_TEE_TYPE,
             &tcb_info,
             &parse_cert_der(&tcb_signing_cert.to_der().unwrap()).unwrap(),

@@ -1,4 +1,4 @@
-use dcap_types::tcbinfo::{
+use dcap_types::tcb_info::{
     TcbComponent, TcbInfoV3, TcbInfoV3Inner, TcbInfoV3TcbLevel, TcbInfoV3TcbLevelItem, TdxModule,
     TdxModuleIdentities,
 };
