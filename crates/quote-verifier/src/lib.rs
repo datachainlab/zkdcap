@@ -76,8 +76,8 @@ mod quote_verifier_tests {
     #[test]
     fn test_verifyv3() {
         let collaterals = QvCollateral {
-            tcb_info_json: include_bytes!("../../../data/v3/tcbinfov3_00906ED50000.json").to_vec(),
-            qe_identity_json: include_bytes!("../../../data/v3/qeidentityv2.json").to_vec(),
+            tcb_info_json: include_str!("../../../data/v3/tcbinfov3_00906ED50000.json").to_string(),
+            qe_identity_json: include_str!("../../../data/v3/qeidentityv2.json").to_string(),
             sgx_intel_root_ca_der: include_bytes!(
                 "../../../data/Intel_SGX_Provisioning_Certification_RootCA.cer"
             )
@@ -134,8 +134,8 @@ mod quote_verifier_tests {
     #[test]
     fn test_verifyv4() {
         let collaterals = QvCollateral {
-            tcb_info_json: include_bytes!("../../../data/v4/tcbinfov3_00806f050000.json").to_vec(),
-            qe_identity_json: include_bytes!("../../../data/v4/qeidentityv2_apiv4.json").to_vec(),
+            tcb_info_json: include_str!("../../../data/v4/tcbinfov3_00806f050000.json").to_string(),
+            qe_identity_json: include_str!("../../../data/v4/qeidentityv2_apiv4.json").to_string(),
             sgx_intel_root_ca_der: include_bytes!(
                 "../../../data/Intel_SGX_Provisioning_Certification_RootCA.cer"
             )

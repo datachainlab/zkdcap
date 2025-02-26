@@ -82,13 +82,12 @@ impl PCSClient {
             ))?;
             let issuer_chain =
                 extract_raw_certs(get_header(&res, "TCB-Info-Issuer-Chain")?.as_bytes())?;
-            (res.bytes()?.to_vec(), issuer_chain[0].clone())
+            (res.text()?, issuer_chain[0].clone())
         };
 
         // get the QE identity
-        let qe_identity_json = http_get(format!("{base_url}/qe/identity?update={update_policy}"))?
-            .bytes()?
-            .to_vec();
+        let qe_identity_json =
+            http_get(format!("{base_url}/qe/identity?update={update_policy}"))?.text()?;
 
         let pck_crl_url = match get_x509_subject_cn(pck_cert_issuer).as_str() {
             "Intel SGX PCK Platform CA" => format!("{base_url}/pckcrl?ca=platform&encoding=der"),
