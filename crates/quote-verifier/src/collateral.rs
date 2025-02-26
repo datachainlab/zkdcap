@@ -12,10 +12,10 @@ use crate::Result;
 pub struct QvCollateral {
     /// TCBInfo in JSON format
     /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-model-v3>
-    pub tcb_info_json: Vec<u8>,
+    pub tcb_info_json: String,
     /// QEIdentity in JSON format
     /// ref. <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-enclave-identity-model-v2>
-    pub qe_identity_json: Vec<u8>,
+    pub qe_identity_json: String,
     /// SGX Intel Root CA certificate in DER format
     /// ref. <https://certificates.trustedservices.intel.com/Intel_SGX_Provisioning_Certification_RootCA.pem>
     pub sgx_intel_root_ca_der: Vec<u8>,
@@ -58,8 +58,8 @@ impl QvCollateral {
         data.extend_from_slice(&(self.sgx_intel_root_ca_crl_der.len() as u32).to_le_bytes());
         data.extend_from_slice(&(self.sgx_pck_crl_der.len() as u32).to_le_bytes());
 
-        data.extend_from_slice(&self.tcb_info_json);
-        data.extend_from_slice(&self.qe_identity_json);
+        data.extend_from_slice(self.tcb_info_json.as_bytes());
+        data.extend_from_slice(self.qe_identity_json.as_bytes());
         data.extend_from_slice(&self.sgx_intel_root_ca_der);
         data.extend_from_slice(&self.sgx_tcb_signing_der);
         data.extend_from_slice(&self.sgx_intel_root_ca_crl_der);
@@ -98,9 +98,10 @@ impl QvCollateral {
             bail!("Invalid QvCollateral length");
         }
 
-        let tcb_info_json = slice[offset..offset + tcb_info_json_len].to_vec();
+        let tcb_info_json = String::from_utf8(slice[offset..offset + tcb_info_json_len].to_vec())?;
         offset += tcb_info_json_len;
-        let qe_identity_json = slice[offset..offset + qe_identity_json_len].to_vec();
+        let qe_identity_json =
+            String::from_utf8(slice[offset..offset + qe_identity_json_len].to_vec())?;
         offset += qe_identity_json_len;
         let sgx_intel_root_ca_der = slice[offset..offset + sgx_intel_root_ca_der_len].to_vec();
         offset += sgx_intel_root_ca_der_len;
@@ -124,7 +125,7 @@ impl QvCollateral {
 
     /// Returns the TCBInfoV3 struct from the TCBInfo JSON bytes
     pub fn get_tcb_info_v3(&self) -> Result<TcbInfoV3> {
-        let tcb_info_v3: TcbInfoV3 = serde_json::from_slice(&self.tcb_info_json)?;
+        let tcb_info_v3: TcbInfoV3 = serde_json::from_str(&self.tcb_info_json)?;
         if tcb_info_v3.tcb_info.version != 3 {
             bail!("Invalid TCB Info version: {}", tcb_info_v3.tcb_info.version);
         }
@@ -133,7 +134,7 @@ impl QvCollateral {
 
     /// Returns the EnclaveIdentityV2 struct from the QEIdentity JSON bytes
     pub fn get_qe_identity_v2(&self) -> Result<EnclaveIdentityV2> {
-        let qe: EnclaveIdentityV2 = serde_json::from_slice(&self.qe_identity_json)?;
+        let qe: EnclaveIdentityV2 = serde_json::from_str(&self.qe_identity_json)?;
         if qe.enclave_identity.version != 2 {
             bail!(
                 "Invalid QE Identity version: {}",
