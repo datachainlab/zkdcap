@@ -9,7 +9,7 @@ use crate::enclave_identity::{get_qe_tcb_status, validate_qe_identityv2};
 use crate::pck::validate_pck_cert;
 use crate::sgx_extensions::extract_sgx_extensions;
 use crate::tcb_info::{validate_tcb_info_v3, validate_tcb_signing_certificate};
-use crate::verifier::{QuoteVerificationOutput, ValidityIntersection};
+use crate::verifier::{QuoteVerificationOutput, Validity};
 use crate::Result;
 use anyhow::{bail, Context};
 use dcap_types::cert::SgxExtensions;
@@ -28,7 +28,7 @@ use x509_parser::certificate::X509Certificate;
 /// Verify the quote with the given collateral data and return the verification output.
 ///
 /// Our verifier's verification logic is based on
-/// <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationApp/src/AppCore/AttestationLibraryAdapter.cpp#L46>.
+/// <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationApp/src/AppCore/AppCore.cpp#L81>.
 ///
 /// However, our verifier returns an error instead of an output if the result corresponds the status is not defined in `Status`(e.g., `STATUS_TCB_NOT_SUPPORTED`).
 ///
@@ -91,7 +91,7 @@ fn verify_quote_common(
     qe_cert_data: &CertData,
     collateral: &QvCollateral,
     current_time: u64,
-) -> Result<(QeTcb, SgxExtensions, TcbInfo, ValidityIntersection)> {
+) -> Result<(QeTcb, SgxExtensions, TcbInfo, Validity)> {
     // get the certchain embedded in the ecda quote signature data
     // this can be one of 5 types, and we only support type 5
     // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/aa239d25a437a28f3f4de92c38f5b6809faac842/QuoteGeneration/quote_wrapper/common/inc/sgx_quote_3.h#L63C4-L63C112
@@ -193,7 +193,7 @@ fn verify_quote_common(
         );
     }
 
-    Ok((qe_tcb, pck_cert_sgx_extensions, tcb_info, validity))
+    Ok((qe_tcb, pck_cert_sgx_extensions, tcb_info, validity.into()))
 }
 
 /// Verify the QE Report and return the TCB Status and Advisory IDs
