@@ -196,3 +196,21 @@ fn match_tdxtcbcomp(tee_tcb_svn: &[u8; 16], tdxtcbcomponents: &[TcbComponent; 16
         .zip(tdxtcbcomponents.iter())
         .all(|(tee, tcb)| *tee >= tcb.svn)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dcap_types::utils::{parse_crl_der, parse_x509_der};
+
+    #[test]
+    fn test_root_crl_verify() {
+        let intel_sgx_root_ca = parse_x509_der(include_bytes!(
+            "../data/Intel_SGX_Provisioning_Certification_RootCA.cer"
+        ))
+        .unwrap();
+        let intel_sgx_root_ca_crl =
+            parse_crl_der(include_bytes!("../data/intel_root_ca_crl.der")).unwrap();
+
+        assert!(verify_crl_signature(&intel_sgx_root_ca_crl, &intel_sgx_root_ca).is_ok());
+    }
+}

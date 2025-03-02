@@ -107,7 +107,7 @@ mod tests {
 
         let enclave_identity = {
             let mut id = serde_json::from_slice::<EnclaveIdentityV2>(
-                include_bytes!("../../../data/v3/qeidentityv2.json").as_slice(),
+                include_bytes!("../data/qeidentityv2_sgx.json").as_slice(),
             )
             .unwrap()
             .enclave_identity;

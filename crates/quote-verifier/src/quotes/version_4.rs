@@ -140,3 +140,43 @@ fn validate_quote_header_v4(quote_header: &QuoteHeader) -> Result<()> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dcap_types::utils::pem_to_der;
+
+    #[test]
+    fn test_verify_quote_v4_intel() {
+        let collaterals = QvCollateral {
+            tcb_info_json: include_str!("../../data/tcbinfov3_00806f050000.json").to_string(),
+            qe_identity_json: include_str!("../../data/qeidentityv2_tdx.json").to_string(),
+            sgx_intel_root_ca_der: include_bytes!(
+                "../../data/Intel_SGX_Provisioning_Certification_RootCA.cer"
+            )
+            .to_vec(),
+            sgx_tcb_signing_der: pem_to_der(include_bytes!("../../data/tcb_signing_cert.pem"))
+                .unwrap(),
+            sgx_intel_root_ca_crl_der: include_bytes!("../../data/intel_root_ca_crl.der").to_vec(),
+            sgx_pck_crl_der: include_bytes!("../../data/pck_platform_crl.der").to_vec(),
+        };
+
+        let res = QuoteV4::from_bytes(include_bytes!("../../data/quote_tdx_00806f050000.dat"));
+        assert!(res.is_ok(), "failed to parse quotev4: {:?}", res.err());
+        let (dcap_quote, _) = res.unwrap();
+
+        let res = verify_quote_v4(&dcap_quote, &collaterals, 1737467060);
+        assert!(res.is_ok(), "verification failed: {:?}", res.err());
+        let verified_output = res.unwrap();
+        assert_eq!(verified_output.status, Status::TcbOutOfDate);
+        let bz = verified_output.to_bytes();
+        let res = QuoteVerificationOutput::from_bytes(&bz);
+        assert!(
+            res.is_ok(),
+            "failed to parse verified output: {:?}",
+            res.err()
+        );
+        let vo = res.unwrap();
+        assert_eq!(verified_output, vo);
+    }
+}

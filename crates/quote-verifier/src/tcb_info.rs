@@ -105,7 +105,28 @@ mod tests {
         sgx_extensions::SgxExtensionsBuilder,
         utils::{gen_key, parse_cert_der, unix_timestamp_to_rfc3339},
     };
+    use dcap_types::utils::{parse_pem, parse_x509_der};
     use x509_parser::prelude::{CertificateRevocationList, FromDer};
+
+    #[test]
+    fn test_tcb_info_v3_sgx() {
+        let tcb_info_v3: TcbInfoV3 =
+            serde_json::from_str(include_str!("../data/tcbinfov3_00906ED50000.json")).unwrap();
+        let sgx_signing_cert_pem =
+            &parse_pem(include_bytes!("../data/tcb_signing_cert.pem")).unwrap()[0];
+        let sgx_signing_cert = parse_x509_der(&sgx_signing_cert_pem.contents).unwrap();
+        assert!(validate_tcb_info_v3(SGX_TEE_TYPE, &tcb_info_v3, &sgx_signing_cert).is_ok());
+    }
+
+    #[test]
+    fn test_tcb_info_v3_tdx() {
+        let tcb_info_v3: TcbInfoV3 =
+            serde_json::from_str(include_str!("../data/tcbinfov3_00806f050000.json")).unwrap();
+        let sgx_signing_cert_pem =
+            &parse_pem(include_bytes!("../data/tcb_signing_cert.pem")).unwrap()[0];
+        let sgx_signing_cert = parse_x509_der(&sgx_signing_cert_pem.contents).unwrap();
+        assert!(validate_tcb_info_v3(TDX_TEE_TYPE, &tcb_info_v3, &sgx_signing_cert).is_ok());
+    }
 
     #[test]
     fn test_tcb_signing_cert_validation() {
@@ -236,7 +257,7 @@ mod tests {
 
         let tcb_info = {
             let mut tcb_info = serde_json::from_slice::<TcbInfoV3>(
-                include_bytes!("../../../data/v3/tcbinfov3_00906ED50000.json").as_slice(),
+                include_bytes!("../data/tcbinfov3_00906ED50000.json").as_slice(),
             )
             .unwrap()
             .tcb_info;
