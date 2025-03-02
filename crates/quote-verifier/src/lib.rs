@@ -113,11 +113,11 @@ mod quote_verifier_tests {
             "validity intersection failed"
         );
         assert_eq!(
-            verified_output.validity.not_before_max, 1737456351,
+            verified_output.validity.not_before, 1737456351,
             "invalid `not_before_max`"
         );
         assert_eq!(
-            verified_output.validity.not_after_min, 1740048100,
+            verified_output.validity.not_after, 1740048100,
             "invalid `not_after_min`"
         );
         let bz = verified_output.to_bytes();

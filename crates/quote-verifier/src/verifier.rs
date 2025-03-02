@@ -9,7 +9,7 @@ use dcap_types::{
     TD10_REPORT_LEN, TDX_TEE_TYPE,
 };
 use serde::{Deserialize, Serialize};
-use x509_parser::certificate::Validity;
+use x509_parser::certificate::Validity as X509Validity;
 
 /// The version of the output format.
 pub const QV_OUTPUT_VERSION: u16 = 0;
@@ -48,7 +48,7 @@ pub struct QuoteVerificationOutput {
     ///
     /// This is the intersection of the validity periods of all certificates and other QV collateral.
     /// The verifier of the output should check this validity intersection to ensure the overall validity of the collateral.
-    pub validity: ValidityIntersection,
+    pub validity: Validity,
     /// The body of the quote that was verified.
     pub quote_body: QuoteBody,
     /// The advisory IDs that are associated with the platform or QE that generated the quote.
@@ -68,8 +68,8 @@ impl QuoteVerificationOutput {
     /// - min_tcb_evaluation_data_number: 4 bytes
     /// - fmspc: 6 bytes
     /// - sgx_intel_root_ca_hash: 32 bytes
-    /// - validity.not_before_max: 8 bytes
-    /// - validity.not_after_min: 8 bytes
+    /// - validity.not_before: 8 bytes
+    /// - validity.not_after: 8 bytes
     /// - quote_body: SGX_ENCLAVE_REPORT(384 bytes) or TD10_REPORT(584 bytes)
     /// - advisory_ids: variable length
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -82,8 +82,8 @@ impl QuoteVerificationOutput {
         output_vec.extend_from_slice(&self.min_tcb_evaluation_data_number.to_be_bytes());
         output_vec.extend_from_slice(&self.fmspc);
         output_vec.extend_from_slice(&self.sgx_intel_root_ca_hash);
-        output_vec.extend_from_slice(&self.validity.not_before_max.to_be_bytes());
-        output_vec.extend_from_slice(&self.validity.not_after_min.to_be_bytes());
+        output_vec.extend_from_slice(&self.validity.not_before.to_be_bytes());
+        output_vec.extend_from_slice(&self.validity.not_after.to_be_bytes());
 
         match self.quote_body {
             QuoteBody::SGXQuoteBody(body) => {
@@ -122,10 +122,10 @@ impl QuoteVerificationOutput {
         let mut sgx_intel_root_ca_hash = [0; 32];
         sgx_intel_root_ca_hash.copy_from_slice(&slice[19..51]);
 
-        let mut not_before_max = [0; 8];
-        not_before_max.copy_from_slice(&slice[51..59]);
-        let mut not_after_min = [0; 8];
-        not_after_min.copy_from_slice(&slice[59..67]);
+        let mut not_before = [0; 8];
+        not_before.copy_from_slice(&slice[51..59]);
+        let mut not_after = [0; 8];
+        not_after.copy_from_slice(&slice[59..67]);
 
         const QUOTE_BODY_OFFSET: usize = 67;
         let (quote_body, advisory_ids_offset) = match u32::from_be_bytes(tee_type) {
@@ -157,9 +157,9 @@ impl QuoteVerificationOutput {
             min_tcb_evaluation_data_number: u32::from_be_bytes(min_tcb_evaluation_data_number),
             fmspc,
             sgx_intel_root_ca_hash,
-            validity: ValidityIntersection {
-                not_before_max: u64::from_be_bytes(not_before_max),
-                not_after_min: u64::from_be_bytes(not_after_min),
+            validity: Validity {
+                not_before: u64::from_be_bytes(not_before),
+                not_after: u64::from_be_bytes(not_after),
             },
             quote_body,
             advisory_ids,
@@ -294,9 +294,9 @@ impl FromStr for Status {
 /// This is used to determine the overall validity period of the collaterals that are being verified.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidityIntersection {
-    /// The maximum not_before seconds timestamp of all certificates
+    /// The maximum not_before seconds timestamp of all collaterals
     pub not_before_max: u64,
-    /// The minimum not_after seconds timestamp of all certificates
+    /// The minimum not_after seconds timestamp of all collaterals
     pub not_after_min: u64,
 }
 
@@ -313,7 +313,7 @@ impl Display for ValidityIntersection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "(not_before: {}, not_after: {})",
+            "(not_before_max: {}, not_after_min: {})",
             self.not_before_max, self.not_after_min
         )
     }
@@ -321,7 +321,7 @@ impl Display for ValidityIntersection {
 
 impl ValidityIntersection {
     /// Create a new ValidityIntersection from a certificate validity.
-    pub fn with_certificate(self, certificate_validity: &Validity) -> Result<Self> {
+    pub fn with_certificate(self, certificate_validity: &X509Validity) -> Result<Self> {
         let not_before = certificate_validity.not_before.timestamp().try_into()?;
         let not_after = certificate_validity.not_after.timestamp().try_into()?;
         Ok(ValidityIntersection {
@@ -366,15 +366,50 @@ impl ValidityIntersection {
     }
 }
 
-impl TryFrom<&Validity> for ValidityIntersection {
+impl TryFrom<&X509Validity> for ValidityIntersection {
     type Error = anyhow::Error;
 
-    fn try_from(validity: &Validity) -> Result<Self> {
+    fn try_from(validity: &X509Validity) -> Result<Self> {
         let not_before = validity.not_before.timestamp().try_into()?;
         let not_after = validity.not_after.timestamp().try_into()?;
         Ok(ValidityIntersection {
             not_before_max: not_before,
             not_after_min: not_after,
         })
+    }
+}
+
+/// Validity represents the validity period of a QV output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Validity {
+    /// The not_before unix timestamp in seconds
+    pub not_before: u64,
+    /// The not_after unix timestamp in seconds
+    pub not_after: u64,
+}
+
+impl Validity {
+    /// Validate the validity period.
+    pub fn validate(&self) -> bool {
+        self.not_before < self.not_after
+    }
+}
+
+impl Display for Validity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "(not_before: {}, not_after: {})",
+            self.not_before, self.not_after
+        )
+    }
+}
+
+impl From<ValidityIntersection> for Validity {
+    fn from(v: ValidityIntersection) -> Self {
+        Validity {
+            not_before: v.not_before_max,
+            not_after: v.not_after_min,
+        }
     }
 }
