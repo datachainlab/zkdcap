@@ -178,9 +178,9 @@ pub fn merge_advisory_ids(advisory_ids: Vec<String>, advisory_ids2: Vec<String>)
 }
 
 fn match_sgxtcbcomp(tcb: &SgxExtensionTcbLevel, sgxtcbcomponents: &[TcbComponent; 16]) -> bool {
-    // Compare all of the SGX TCB Comp SVNs retrieved from the SGX PCK Certificate (from 01 to 16) with the corresponding values of SVNs in sgxtcbcomponents array of TCB Level.
-    // If all SGX TCB Comp SVNs in the certificate are greater or equal to the corresponding values in TCB Level, then return true.
-    // Otherwise, return false.
+    // ref. https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-sgx-v4
+    //      https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-tdx-v4
+    // 3-a. Compare all of the SGX TCB Comp SVNs retrieved from the SGX PCK Certificate (from 01 to 16) with the corresponding values of SVNs in sgxtcbcomponents array of TCB Level. If all SGX TCB Comp SVNs in the certificate are greater or equal to the corresponding values in TCB Level, go to 3.b, otherwise move to the next item on TCB Levels list.
     tcb.sgxtcbcompsvns()
         .into_iter()
         .zip(sgxtcbcomponents.iter())
@@ -188,12 +188,12 @@ fn match_sgxtcbcomp(tcb: &SgxExtensionTcbLevel, sgxtcbcomponents: &[TcbComponent
 }
 
 fn match_tdxtcbcomp(tee_tcb_svn: &[u8; 16], tdxtcbcomponents: &[TcbComponent; 16]) -> bool {
-    // Compare all of the TDX TCB Comp SVNs retrieved from the TDX Quote (from 01 to 16) with the corresponding values of SVNs in tdxtcbcomponents array of TCB Level.
-    // If all TDX TCB Comp SVNs in the quote are greater or equal to the corresponding values in TCB Level, then return true.
-    // Otherwise, return false.
-    tee_tcb_svn
+    // ref. https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-tdx-v4
+    // 3-c. Compare SVNs in TEE TCB SVN array retrieved from TD Report in Quote (from index 0 to 15 if TEE TCB SVN at index 1 is set to 0, or from index 2 to 15 otherwise) with the corresponding values of SVNs in tdxtcbcomponents array of TCB Level. If all TEE TCB SVNs in the TD Report are greater or equal to the corresponding values in TCB Level, read tcbStatus assigned to this TCB level. Otherwise, move to the next item on TCB Levels list.
+    let start_index = if tee_tcb_svn[1] > 0 { 2 } else { 0 };
+    tee_tcb_svn[start_index..]
         .iter()
-        .zip(tdxtcbcomponents.iter())
+        .zip(tdxtcbcomponents[start_index..].iter())
         .all(|(tee, tcb)| *tee >= tcb.svn)
 }
 
