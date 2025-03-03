@@ -160,7 +160,7 @@ mod tests {
     };
     use proptest::prelude::*;
 
-    const RAW_QUOTE_V4: &[u8] = include_bytes!("../../../../data/v4/quote.dat");
+    const RAW_QUOTE_V4: &[u8] = include_bytes!("../../data/quote_v4.dat");
 
     #[test]
     fn test_quote_v4() {

@@ -7,6 +7,7 @@ use dcap_types::{TcbInfoV3TcbStatus, TdxModuleTcbStatus, TdxModuleTcbValidationS
 /// Get the TCB status of the TDX module corresponding to the given SVN.
 ///
 /// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/Checks/TdxModuleCheck.cpp#L62-L97>
+///      <https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-tdx-v4>
 ///
 /// # Arguments
 /// - `tee_tcb_svn`: The SVN of the TEE TCB extracted from the `TD10ReportBody`
