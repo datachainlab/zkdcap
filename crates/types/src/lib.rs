@@ -1,4 +1,5 @@
 use anyhow::bail;
+use core::fmt::{Display, Formatter};
 use core::str::FromStr;
 use serde::{Deserialize, Serialize};
 
@@ -111,6 +112,16 @@ impl FromStr for TdxModuleTcbStatus {
             "Revoked" => Self::Revoked,
             _ => bail!("unrecognized TdxModuleTcbStatus: {}", s),
         })
+    }
+}
+
+impl Display for TdxModuleTcbStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            TdxModuleTcbStatus::UpToDate => write!(f, "UpToDate"),
+            TdxModuleTcbStatus::OutOfDate => write!(f, "OutOfDate"),
+            TdxModuleTcbStatus::Revoked => write!(f, "Revoked"),
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 use dcap_types::tcb_info::{
     TcbComponent, TcbInfoV3, TcbInfoV3Inner, TcbInfoV3TcbLevel, TcbInfoV3TcbLevelItem, TdxModule,
-    TdxModuleIdentities,
+    TdxModuleIdentities, TdxModuleIdentitiesTcbLevel, TdxModuleIdentitiesTcbLevelItem,
 };
 use openssl::pkey::{PKeyRef, Private};
 
@@ -263,4 +263,178 @@ pub fn gen_tcb_components(svns: &[u8; 16]) -> [TcbComponent; 16] {
         .collect::<Vec<_>>()
         .try_into()
         .unwrap()
+}
+
+pub struct TdxModuleBuilder {
+    pub obj: TdxModule,
+}
+
+impl TdxModuleBuilder {
+    pub fn new() -> Self {
+        Self {
+            obj: TdxModule {
+                mrsigner: hex::encode([0; 48]),
+                attributes: hex::encode([0; 8]),
+                attributes_mask: hex::encode([0; 8]),
+            },
+        }
+    }
+
+    pub fn mrsigner(self, mrsigner: [u8; 48]) -> Self {
+        Self {
+            obj: TdxModule {
+                mrsigner: hex::encode(mrsigner),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn attributes(self, attributes: [u8; 8]) -> Self {
+        Self {
+            obj: TdxModule {
+                attributes: hex::encode(attributes),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn attributes_mask(self, attributes_mask: [u8; 8]) -> Self {
+        Self {
+            obj: TdxModule {
+                attributes_mask: hex::encode(attributes_mask),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn build(self) -> TdxModule {
+        self.obj
+    }
+}
+
+pub struct TdxModuleIdentitiesBuilder {
+    pub obj: TdxModuleIdentities,
+}
+
+impl TdxModuleIdentitiesBuilder {
+    pub fn new() -> Self {
+        Self {
+            obj: TdxModuleIdentities {
+                id: "TDX_01".to_string(),
+                mrsigner: hex::encode([0; 48]),
+                attributes: hex::encode([0; 8]),
+                attributes_mask: hex::encode([0; 8]),
+                tcb_levels: vec![],
+            },
+        }
+    }
+
+    pub fn id(self, id: u8) -> Self {
+        Self {
+            obj: TdxModuleIdentities {
+                id: format!("TDX_{:02X}", id),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn mrsigner(self, mrsigner: [u8; 48]) -> Self {
+        Self {
+            obj: TdxModuleIdentities {
+                mrsigner: hex::encode(mrsigner),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn attributes(self, attributes: [u8; 8]) -> Self {
+        Self {
+            obj: TdxModuleIdentities {
+                attributes: hex::encode(attributes),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn attributes_mask(self, attributes_mask: [u8; 8]) -> Self {
+        Self {
+            obj: TdxModuleIdentities {
+                attributes_mask: hex::encode(attributes_mask),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn tcb_levels(self, tcb_levels: Vec<TdxModuleIdentitiesTcbLevelItem>) -> Self {
+        Self {
+            obj: TdxModuleIdentities {
+                tcb_levels,
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn build(self) -> TdxModuleIdentities {
+        self.obj
+    }
+}
+
+pub struct TdxModuleIdentitiesTcbLevelItemBuilder {
+    pub obj: TdxModuleIdentitiesTcbLevelItem,
+}
+
+impl TdxModuleIdentitiesTcbLevelItemBuilder {
+    pub fn new() -> Self {
+        Self {
+            obj: TdxModuleIdentitiesTcbLevelItem {
+                tcb: TdxModuleIdentitiesTcbLevel::default(),
+                tcb_date: chrono::Utc::now().to_rfc3339(),
+                tcb_status: "UpToDate".to_string(),
+                advisory_ids: None,
+            },
+        }
+    }
+
+    pub fn tcb(self, tcb: TdxModuleIdentitiesTcbLevel) -> Self {
+        Self {
+            obj: TdxModuleIdentitiesTcbLevelItem { tcb, ..self.obj },
+        }
+    }
+
+    pub fn tcb_date(self, tcb_date: i64) -> Self {
+        Self {
+            obj: TdxModuleIdentitiesTcbLevelItem {
+                tcb_date: chrono::DateTime::from_timestamp(tcb_date, 0)
+                    .unwrap()
+                    .to_rfc3339(),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn tcb_status(self, tcb_status: &str) -> Self {
+        Self {
+            obj: TdxModuleIdentitiesTcbLevelItem {
+                tcb_status: tcb_status.to_string(),
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn advisory_ids(self, advisory_ids: &[&str]) -> Self {
+        Self {
+            obj: TdxModuleIdentitiesTcbLevelItem {
+                advisory_ids: if advisory_ids.is_empty() {
+                    None
+                } else {
+                    Some(advisory_ids.iter().map(|s| s.to_string()).collect())
+                },
+                ..self.obj
+            },
+        }
+    }
+
+    pub fn build(self) -> TdxModuleIdentitiesTcbLevelItem {
+        self.obj
+    }
 }

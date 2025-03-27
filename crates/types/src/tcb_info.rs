@@ -156,11 +156,7 @@ pub struct TdxModuleIdentitiesTcbLevelItem {
     pub tcb_date: String,
     /// TCB level status. One of the following values:
     /// "UpToDate" - TCB level of the TDX SEAM Module is up-to-date.
-    /// "SWHardeningNeeded" - TCB level of the TDX SEAM Module is up-to-date but due to certain issues affecting the platform, additional SW Hardening in the attesting TDX enclaves may be needed.
-    /// "ConfigurationNeeded" - TCB level of the TDX SEAM Module is up-to-date but additional configuration of TDX platform may be needed.
-    /// "ConfigurationAndSWHardeningNeeded" - TCB level of the TDX SEAM Module is up-to-date but additional configuration for the platform and SW Hardening in the attesting TDX enclaves may be needed.
     /// "OutOfDate" - TCB level of TDX SEAM Module is outdated.
-    /// "OutOfDateConfigurationNeeded" - TCB level of TDX SEAM Module is outdated and additional configuration of TDX platform may be needed.
     /// "Revoked" - TCB level of TDX SEAM Module is revoked. The platform is not trustworthy.
     pub tcb_status: String,
     /// Array of Advisory IDs referring to Intel security advisories that provide insight into the reason(s) for the value of tcbStatus for this TCB level when the value is not UpToDate.
@@ -182,6 +178,7 @@ impl TdxModuleIdentitiesTcbLevelItem {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModuleIdentitiesTcbLevel {
+    /// TDX SEAM module's ISV SVN
     pub isvsvn: u8,
 }
 
