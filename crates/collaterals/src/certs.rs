@@ -4,7 +4,8 @@ use crate::{
 };
 use anyhow::bail;
 use dcap_types::cert::{
-    SgxExtensions, SGX_PCK_CERT_CN, SGX_PCK_PLATFORM_CA_CN, SGX_PCK_PROCESSOR_CA_CN,
+    SgxExtensions, SGX_PCK_CERT_DN, SGX_PCK_PLATFORM_CA_DN, SGX_PCK_PROCESSOR_CA_DN,
+    SGX_ROOT_CA_DN, SGX_TCB_SIGNING_CERT_DN,
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Object, Asn1OctetString, Asn1Time},
@@ -39,7 +40,7 @@ pub fn gen_sgx_intel_root_ca(
     root_pkey: &PKey<Private>,
     validity: Validity,
 ) -> Result<X509, anyhow::Error> {
-    let name = build_x509_name("Intel SGX Root CA")?;
+    let name = build_x509_name(SGX_ROOT_CA_DN)?;
     let mut builder = X509Builder::new()?;
     builder.set_version(0x2)?;
     builder.set_issuer_name(&name)?;
@@ -139,7 +140,7 @@ pub fn gen_tcb_signing_ca(
         Asn1Integer::from_bn(BigNum::from_slice(calc_skid(tcb_signing_pkey).as_slice())?.as_ref())?
             .as_ref(),
     )?;
-    builder.set_subject_name(build_x509_name("Intel SGX TCB Signing")?.as_ref())?;
+    builder.set_subject_name(build_x509_name(SGX_TCB_SIGNING_CERT_DN)?.as_ref())?;
 
     builder.set_not_before(&validity.not_before())?;
     builder.set_not_after(&validity.not_after())?;
@@ -201,21 +202,21 @@ pub enum PckCa {
 
 impl PckCa {
     /// Create a PckCa from the CN of the certificate
-    pub fn from_cn(cn: &str) -> Result<Self, anyhow::Error> {
-        if cn == SGX_PCK_PROCESSOR_CA_CN {
+    pub fn from_dn(dn: &str) -> Result<Self, anyhow::Error> {
+        if dn == SGX_PCK_PROCESSOR_CA_DN {
             Ok(PckCa::Processor)
-        } else if cn == SGX_PCK_PLATFORM_CA_CN {
+        } else if dn == SGX_PCK_PLATFORM_CA_DN {
             Ok(PckCa::Platform)
         } else {
-            bail!("Invalid PCK CA CN: {}", cn)
+            bail!("Invalid PCK CA DN: {}", dn)
         }
     }
 
-    /// Get the CN of the PckCa
-    pub fn cn(&self) -> &'static str {
+    /// Get the DN of the PckCa
+    pub fn dn(&self) -> &'static str {
         match self {
-            PckCa::Processor => SGX_PCK_PROCESSOR_CA_CN,
-            PckCa::Platform => SGX_PCK_PLATFORM_CA_CN,
+            PckCa::Processor => SGX_PCK_PROCESSOR_CA_DN,
+            PckCa::Platform => SGX_PCK_PLATFORM_CA_DN,
         }
     }
 
@@ -242,7 +243,7 @@ pub fn gen_pck_cert_ca(
         Asn1Integer::from_bn(BigNum::from_slice(calc_skid(pck_cert_ca_pkey).as_slice())?.as_ref())?
             .as_ref(),
     )?;
-    builder.set_subject_name(build_x509_name(pck_ca.cn())?.as_ref())?;
+    builder.set_subject_name(build_x509_name(pck_ca.dn())?.as_ref())?;
     builder.set_pubkey(pck_cert_ca_pkey)?;
 
     builder.set_not_before(&validity.not_before())?;
@@ -280,16 +281,7 @@ pub fn gen_pck_cert(
     sgx_extensions: &SgxExtensions,
     validity: Validity,
 ) -> Result<X509, anyhow::Error> {
-    let pck_ca = PckCa::from_cn(
-        pck_ca_cert
-            .subject_name()
-            .entries()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("No subject name"))?
-            .data()
-            .as_utf8()?
-            .as_ref(),
-    )?;
+    let pck_ca = PckCa::from_dn(x509_name_to_string(pck_ca_cert).as_str())?;
 
     let mut builder = X509Builder::new()?;
     builder.set_version(0x2)?;
@@ -298,7 +290,7 @@ pub fn gen_pck_cert(
         Asn1Integer::from_bn(BigNum::from_slice(calc_skid(pck_cert_pkey).as_slice())?.as_ref())?
             .as_ref(),
     )?;
-    builder.set_subject_name(build_x509_name(SGX_PCK_CERT_CN)?.as_ref())?;
+    builder.set_subject_name(build_x509_name(SGX_PCK_CERT_DN)?.as_ref())?;
     builder.set_pubkey(pck_cert_pkey)?;
 
     builder.set_not_before(&validity.not_before())?;
@@ -337,6 +329,22 @@ pub fn gen_pck_cert(
     builder.sign(pck_ca_key, MessageDigest::sha256())?;
 
     Ok(builder.build())
+}
+
+fn x509_name_to_string(x509: &X509Ref) -> String {
+    let mut name = String::new();
+    for entry in x509.subject_name().entries() {
+        let object = entry.object();
+        let data = entry.data();
+        let utf8 = data.as_utf8().unwrap();
+        let oid = object.nid().short_name().unwrap();
+        if name.is_empty() {
+            name.push_str(&format!("{}={}", oid, utf8));
+        } else {
+            name.push_str(&format!(", {}={}", oid, utf8));
+        }
+    }
+    name
 }
 
 pub struct PckCertchain {
@@ -460,8 +468,21 @@ impl Validity {
     }
 }
 
-fn build_x509_name(cn: &str) -> Result<X509Name, ErrorStack> {
+fn build_x509_name(dn: &str) -> Result<X509Name, ErrorStack> {
     let mut builder = X509Name::builder()?;
+    let cn = if dn == SGX_ROOT_CA_DN {
+        "Intel SGX Root CA"
+    } else if dn == SGX_PCK_PLATFORM_CA_DN {
+        "Intel SGX PCK Platform CA"
+    } else if dn == SGX_PCK_PROCESSOR_CA_DN {
+        "Intel SGX PCK Processor CA"
+    } else if dn == SGX_PCK_CERT_DN {
+        "Intel SGX PCK Certificate"
+    } else if dn == SGX_TCB_SIGNING_CERT_DN {
+        "Intel SGX TCB Signing"
+    } else {
+        panic!("Invalid DN: {}", dn);
+    };
     builder.append_entry_by_text("CN", cn)?;
     builder.append_entry_by_text("O", "Intel Corporation")?;
     builder.append_entry_by_text("L", "Santa Clara")?;

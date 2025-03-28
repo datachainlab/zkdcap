@@ -1,7 +1,8 @@
 use anyhow::{anyhow, bail, Error};
-use dcap_quote_verifier::cert::{get_x509_subject_cn, parse_certchain};
+use dcap_quote_verifier::cert::{get_x509_subject_dn, parse_certchain};
 use dcap_quote_verifier::collateral::QvCollateral;
 use dcap_quote_verifier::sgx_extensions::extract_sgx_extensions;
+use dcap_types::cert::{SGX_PCK_PLATFORM_CA_DN, SGX_PCK_PROCESSOR_CA_DN};
 use dcap_types::quotes::CertData;
 use dcap_types::utils::{parse_pem, pem_to_der};
 use log::*;
@@ -97,16 +98,13 @@ impl PCSClient {
         let qe_identity_json =
             http_get(format!("{base_url}/qe/identity?update={update_policy}"))?.text()?;
 
-        let pck_crl_url = match get_x509_subject_cn(pck_cert_issuer).as_str() {
-            "Intel SGX PCK Platform CA" => {
-                format!("{pcs_url}/sgx/certification/v4/pckcrl?ca=platform&encoding=der")
-            }
-            "Intel SGX PCK Processor CA" => {
-                format!("{pcs_url}/sgx/certification/v4/pckcrl?ca=processor&encoding=der")
-            }
-            cn => {
-                bail!("unknown PCK issuer: {}", cn);
-            }
+        let pck_cert_issuer_subject = get_x509_subject_dn(pck_cert_issuer);
+        let pck_crl_url = if pck_cert_issuer_subject == SGX_PCK_PLATFORM_CA_DN {
+            format!("{pcs_url}/sgx/certification/v4/pckcrl?ca=platform&encoding=der")
+        } else if pck_cert_issuer_subject == SGX_PCK_PROCESSOR_CA_DN {
+            format!("{pcs_url}/sgx/certification/v4/pckcrl?ca=processor&encoding=der")
+        } else {
+            bail!("unknown PCK issuer: {}", pck_cert_issuer_subject);
         };
         let sgx_pck_crl_der = http_get(pck_crl_url)?.bytes()?.to_vec();
 

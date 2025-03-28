@@ -1,6 +1,6 @@
 use crate::{verifier::ValidityIntersection, Result};
-use anyhow::{bail, Context};
-use dcap_types::cert::{SGX_PCK_PLATFORM_CA_CN, SGX_PCK_PROCESSOR_CA_CN, SGX_ROOT_CA_CN};
+use anyhow::bail;
+use dcap_types::cert::{SGX_PCK_PLATFORM_CA_DN, SGX_PCK_PROCESSOR_CA_DN, SGX_ROOT_CA_DN};
 use x509_parser::{certificate::X509Certificate, revocation_list::CertificateRevocationList};
 
 /// The type of CRL
@@ -144,35 +144,24 @@ impl<'a> IntelSgxCrls<'a> {
 /// We assume that the issuer of the certificate issues the only one type of CRL
 /// ref. p.5 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf>
 fn get_crl_type_from_cert(cert: &X509Certificate) -> Result<CrlType> {
-    let issuer_cn = cert
-        .issuer()
-        .iter_common_name()
-        .next()
-        .context("No common name in the issuer")?
-        .as_str()?;
-    get_crl_type_from_issuer_cn(issuer_cn)
+    let issuer_dn = cert.issuer().to_string();
+    get_crl_type_from_issuer_dn(issuer_dn.as_str())
 }
 
 /// Get the type of the CRL from the issuer common name of the CRL
 /// We assume that the issuer of the crl issues the only one type of CRL
 /// ref. p.5 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf>
 fn get_crl_type_from_crl(crl: &CertificateRevocationList) -> Result<CrlType> {
-    get_crl_type_from_issuer_cn(
-        crl.issuer()
-            .iter_common_name()
-            .next()
-            .context("No common name in the issuer")?
-            .as_str()?,
-    )
+    get_crl_type_from_issuer_dn(crl.issuer().to_string().as_str())
 }
 
 /// Get the type of the CRL from the issuer common name
-fn get_crl_type_from_issuer_cn(issuer: &str) -> Result<CrlType> {
-    if issuer == SGX_ROOT_CA_CN {
+fn get_crl_type_from_issuer_dn(issuer: &str) -> Result<CrlType> {
+    if issuer == SGX_ROOT_CA_DN {
         Ok(CrlType::SgxRootCa)
-    } else if issuer == SGX_PCK_PROCESSOR_CA_CN {
+    } else if issuer == SGX_PCK_PROCESSOR_CA_DN {
         Ok(CrlType::SgxPckProcessor)
-    } else if issuer == SGX_PCK_PLATFORM_CA_CN {
+    } else if issuer == SGX_PCK_PLATFORM_CA_DN {
         Ok(CrlType::SgxPckPlatform)
     } else {
         bail!("Unknown CRL issuer: {}", issuer);

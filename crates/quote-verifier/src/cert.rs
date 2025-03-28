@@ -61,18 +61,12 @@ pub fn verify_certchain_signature(
     verify_certificate(prev_cert, root_cert)
 }
 
-/// Get the Subject Common Name (CN) from a certificate.
-pub fn get_x509_subject_cn(cert: &X509Certificate) -> String {
-    let subject = cert.subject();
-    let cn = subject.iter_common_name().next().unwrap();
-    cn.as_str().unwrap().to_string()
+pub fn get_x509_subject_dn(cert: &X509Certificate) -> String {
+    cert.subject().to_string()
 }
 
-/// Get the Issuer Common Name (CN) from a certificate.
-pub fn get_x509_issuer_cn(cert: &X509Certificate) -> String {
-    let issuer = cert.issuer();
-    let cn = issuer.iter_common_name().next().unwrap();
-    cn.as_str().unwrap().to_string()
+pub fn get_x509_issuer_dn(cert: &X509Certificate) -> String {
+    cert.issuer().to_string()
 }
 
 /// Get the TCB status and advisory IDs of the SGX or TDX corresponding to the given SVN from the TCB Info V3.

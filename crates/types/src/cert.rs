@@ -1,10 +1,15 @@
 use serde::{Deserialize, Serialize};
 
-pub const SGX_ROOT_CA_CN: &str = "Intel SGX Root CA";
-pub const SGX_PCK_PLATFORM_CA_CN: &str = "Intel SGX PCK Platform CA";
-pub const SGX_PCK_PROCESSOR_CA_CN: &str = "Intel SGX PCK Processor CA";
-pub const SGX_PCK_CERT_CN: &str = "Intel SGX PCK Certificate";
-pub const SGX_TCB_SIGNING_CERT_CN: &str = "Intel SGX TCB Signing";
+pub const SGX_ROOT_CA_DN: &str =
+    "CN=Intel SGX Root CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US";
+pub const SGX_PCK_PLATFORM_CA_DN: &str =
+    "CN=Intel SGX PCK Platform CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US";
+pub const SGX_PCK_PROCESSOR_CA_DN: &str =
+    "CN=Intel SGX PCK Processor CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US";
+pub const SGX_PCK_CERT_DN: &str =
+    "CN=Intel SGX PCK Certificate, O=Intel Corporation, L=Santa Clara, ST=CA, C=US";
+pub const SGX_TCB_SIGNING_CERT_DN: &str =
+    "CN=Intel SGX TCB Signing, O=Intel Corporation, L=Santa Clara, ST=CA, C=US";
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
