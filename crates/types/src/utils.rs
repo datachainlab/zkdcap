@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use x509_parser::oid_registry::asn1_rs::FromDer;
 use x509_parser::prelude::*;
 
@@ -33,7 +34,14 @@ pub fn parse_x509_der_multi(raw_bytes: &[u8]) -> crate::Result<Vec<X509Certifica
     let mut certs = Vec::new();
     let mut i = raw_bytes;
     while !i.is_empty() {
+        let original_len = i.len();
         let (j, cert) = X509Certificate::from_der(i)?;
+        // Check that parser is making progress to avoid infinite loop
+        if j.len() >= original_len {
+            return Err(anyhow!(
+                "X.509 parser not making progress, possible infinite loop"
+            ));
+        }
         certs.push(cert);
         i = j;
     }
