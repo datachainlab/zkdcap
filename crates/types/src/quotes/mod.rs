@@ -187,13 +187,16 @@ pub struct CertData {
 
 impl CertData {
     /// Create a new CertData instance.
-    pub fn new(cert_data_type: u16, cert_data: Vec<u8>) -> Self {
-        let cert_data_size = cert_data.len() as u32;
-        CertData {
+    pub fn new(cert_data_type: u16, cert_data: Vec<u8>) -> Result<Self> {
+        let cert_data_size = cert_data
+            .len()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("CertData size is too large"))?;
+        Ok(CertData {
             cert_data_type,
             cert_data_size,
             cert_data,
-        }
+        })
     }
 
     /// Parse a CertData from a byte slice.
@@ -267,6 +270,9 @@ pub struct QeReportCertData {
 impl QeReportCertData {
     /// Parse a QeReportCertData from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
+        if raw_bytes.len() < 448 {
+            bail!("QeReportCertData input too short");
+        }
         // 384 bytes for qe_report
         let qe_report = EnclaveReport::from_bytes(&raw_bytes[0..384])?;
         // 64 bytes for qe_report_signature

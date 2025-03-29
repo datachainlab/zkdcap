@@ -242,7 +242,7 @@ mod tests {
                 QuoteSignatureDataV4 {
                     quote_signature,
                     ecdsa_attestation_key,
-                    qe_cert_data: CertData::new(6, qe_cert_data.to_bytes()),
+                    qe_cert_data: CertData::new(6, qe_cert_data.to_bytes()).unwrap(),
                 }
             })
     }
