@@ -65,6 +65,9 @@ impl TcbInfoV3Inner {
     pub fn fmspc(&self) -> Result<[u8; 6], anyhow::Error> {
         let mut fmspc = [0; 6];
         let fmspc_bytes = hex::decode(&self.fmspc)?;
+        if fmspc_bytes.len() != 6 {
+            bail!("Invalid FMSPC length");
+        }
         fmspc.copy_from_slice(&fmspc_bytes);
         Ok(fmspc)
     }
@@ -73,6 +76,9 @@ impl TcbInfoV3Inner {
     pub fn pce_id(&self) -> Result<[u8; 2], anyhow::Error> {
         let mut pce_id = [0; 2];
         let pce_id_bytes = hex::decode(&self.pce_id)?;
+        if pce_id_bytes.len() != 2 {
+            bail!("Invalid PCE ID length");
+        }
         pce_id.copy_from_slice(&pce_id_bytes);
         Ok(pce_id)
     }
@@ -94,6 +100,9 @@ impl TdxModule {
     pub fn mrsigner(&self) -> Result<[u8; 48], anyhow::Error> {
         let mut mrsigner = [0; 48];
         let mrsigner_bytes = hex::decode(&self.mrsigner)?;
+        if mrsigner_bytes.len() != 48 {
+            bail!("Invalid MRSIGNER length");
+        }
         mrsigner.copy_from_slice(&mrsigner_bytes);
         Ok(mrsigner)
     }
@@ -131,6 +140,9 @@ impl TdxModuleIdentities {
     pub fn mrsigner(&self) -> Result<[u8; 48], anyhow::Error> {
         let mut mrsigner = [0; 48];
         let mrsigner_bytes = hex::decode(&self.mrsigner)?;
+        if mrsigner_bytes.len() != 48 {
+            bail!("Invalid MRSIGNER length");
+        }
         mrsigner.copy_from_slice(&mrsigner_bytes);
         Ok(mrsigner)
     }
