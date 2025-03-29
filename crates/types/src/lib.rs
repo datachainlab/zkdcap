@@ -30,6 +30,12 @@ pub const QUOTE_HEADER_LEN: usize = 48;
 pub const ENCLAVE_REPORT_LEN: usize = 384;
 /// ref. p.37 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
 pub const TD10_REPORT_LEN: usize = 584;
+/// ref. p.69 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
+pub const ISV_ENCLAVE_REPORT_SIGNATURE_LEN: usize = 64;
+/// ref. p.69 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
+pub const ECDSA_ATTESTATION_KEY_LEN: usize = 64;
+/// ref. p.69 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_SGX_ECDSA_QuoteLibReference_DCAP_API.pdf>
+pub const QE_REPORT_SIGNATURE_LEN: usize = 64;
 
 pub(crate) type Result<T> = core::result::Result<T, anyhow::Error>;
 

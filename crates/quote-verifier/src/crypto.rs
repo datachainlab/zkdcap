@@ -5,12 +5,13 @@ use sha3::Keccak256;
 
 /// verify_p256_signature_bytes verifies a P256 ECDSA signature
 /// using the provided data, signature, and public key.
+///
 /// # Arguments
 /// * `data` - The data that was signed.
 /// * `signature` - The signature is the signature (in raw form \[r\]\[s\]) of the data as a byte slice. (64 bytes)
 /// * `public_key` - The public key (in uncompressed form \[4\]\[\x\]\[y\]) of the entity that signed the data. (65 bytes)
 /// # Returns
-/// * Returns true if the signature is valid, false otherwise.
+/// * Returns Ok(()) if the signature is valid.
 pub fn verify_p256_signature_bytes(data: &[u8], signature: &[u8], public_key: &[u8]) -> Result<()> {
     let signature = Signature::from_bytes(signature.into())?;
     let verifying_key = VerifyingKey::from_sec1_bytes(public_key)?;
@@ -19,12 +20,13 @@ pub fn verify_p256_signature_bytes(data: &[u8], signature: &[u8], public_key: &[
 
 /// verify_p256_signature_der verifies a P256 ECDSA signature
 /// using the provided data, signature, and public key.
+///
 /// # Arguments
 /// * `data` - The data that was signed.
 /// * `signature_der` - The der encoded signature of the data as a byte slice.
 /// * `public_key` - The public key (in uncompressed form \[4\]\[\x\]\[y\]) of the entity that signed the data. (65 bytes)
 /// # Returns
-/// * Returns true if the signature is valid, false otherwise.
+/// * Returns Ok(()) if the signature is valid.
 pub fn verify_p256_signature_der(
     data: &[u8],
     signature_der: &[u8],

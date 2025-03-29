@@ -1,6 +1,6 @@
 use crate::cert::{
-    get_x509_issuer_cn, get_x509_subject_cn, validate_cert_extensions, verify_certificate,
-    KU_DIGITAL_SIGNATURE, KU_NON_REPUDIATION,
+    get_x509_issuer_cn, get_x509_subject_cn, validate_cert_extensions,
+    verify_certificate_signature, KU_DIGITAL_SIGNATURE, KU_NON_REPUDIATION,
 };
 use crate::crl::IntelSgxCrls;
 use crate::crypto::verify_p256_signature_bytes;
@@ -47,7 +47,7 @@ pub fn validate_tcb_signing_certificate(
     .context("TCB Signing cert extension validation failed")?;
 
     // check that the tcb signing cert is signed by the root cert
-    verify_certificate(tcb_signing_cert, intel_sgx_root_cert)
+    verify_certificate_signature(tcb_signing_cert, intel_sgx_root_cert)
         .context("Invalid TCB Signing Cert")?;
     // check that the tcb signing cert is not revoked by the `self.sgx_root_ca_crl` CRL
     if intel_crls.is_cert_revoked(tcb_signing_cert)? {

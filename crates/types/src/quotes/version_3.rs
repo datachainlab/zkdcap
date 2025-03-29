@@ -1,11 +1,22 @@
 use super::{body::EnclaveReport, CertData, QeAuthData, QuoteHeader};
-use crate::{Result, ENCLAVE_REPORT_LEN, QUOTE_FORMAT_V3, QUOTE_HEADER_LEN};
+use crate::{
+    Result, ECDSA_ATTESTATION_KEY_LEN, ENCLAVE_REPORT_LEN, ISV_ENCLAVE_REPORT_SIGNATURE_LEN,
+    QE_REPORT_SIGNATURE_LEN, QUOTE_FORMAT_V3, QUOTE_HEADER_LEN,
+};
 use anyhow::{anyhow, bail};
 
 const SIGNATURE_DATA_SIZE_OFFSET: usize = QUOTE_HEADER_LEN + ENCLAVE_REPORT_LEN;
 const SIGNATURE_DATA_SIZE_LEN: usize = 4;
 const SIGNATURE_DATA_OFFSET: usize =
     QUOTE_HEADER_LEN + ENCLAVE_REPORT_LEN + SIGNATURE_DATA_SIZE_LEN;
+
+const SIGNATURE_DATA_V3_ECDSA_ATTESTATION_KEY_OFFSET: usize = ISV_ENCLAVE_REPORT_SIGNATURE_LEN;
+const SIGNATURE_DATA_V3_QE_REPORT_OFFSET: usize =
+    SIGNATURE_DATA_V3_ECDSA_ATTESTATION_KEY_OFFSET + ECDSA_ATTESTATION_KEY_LEN;
+const SIGNATURE_DATA_V3_QE_REPORT_SIGNATURE_OFFSET: usize =
+    SIGNATURE_DATA_V3_QE_REPORT_OFFSET + ENCLAVE_REPORT_LEN;
+const SIGNATURE_DATA_V3_QE_AUTH_DATA_OFFSET: usize =
+    SIGNATURE_DATA_V3_QE_REPORT_SIGNATURE_OFFSET + QE_REPORT_SIGNATURE_LEN;
 
 /// Quote structure for DCAP version 3.
 /// The structure is defined in the Intel SGX ECDSA Quote Library Reference.
@@ -90,11 +101,13 @@ impl QuoteV3 {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuoteSignatureDataV3 {
-    pub isv_enclave_report_signature: [u8; 64], // ECDSA signature, the r component followed by the s component, 2 x 32 bytes.
-    pub ecdsa_attestation_key: [u8; 64], // EC KT-I Public Key, the x-coordinate followed by the y-coordinate
+    // ECDSA signature, the r component followed by the s component, 2 x 32 bytes.
+    pub isv_enclave_report_signature: [u8; ISV_ENCLAVE_REPORT_SIGNATURE_LEN],
+    // EC KT-I Public Key, the x-coordinate followed by the y-coordinate
     // (on the RFC 6090 P-256 curve), 2 x 32 bytes.
+    pub ecdsa_attestation_key: [u8; ECDSA_ATTESTATION_KEY_LEN],
     pub qe_report: EnclaveReport,
-    pub qe_report_signature: [u8; 64],
+    pub qe_report_signature: [u8; QE_REPORT_SIGNATURE_LEN],
     pub qe_auth_data: QeAuthData,
     pub qe_cert_data: CertData,
 }
@@ -103,19 +116,31 @@ impl QuoteSignatureDataV3 {
     /// Parse a QuoteSignatureDataV3 from a byte slice.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<QuoteSignatureDataV3> {
         let len = raw_bytes.len();
-        if len < 576 {
+        if len < SIGNATURE_DATA_V3_QE_AUTH_DATA_OFFSET {
             return Err(anyhow!("QuoteSignatureDataV3 data is too short"));
         }
-        let mut isv_enclave_report_signature = [0u8; 64];
-        let mut ecdsa_attestation_key = [0u8; 64];
-        let mut qe_report_signature = [0u8; 64];
+        let mut isv_enclave_report_signature = [0u8; ISV_ENCLAVE_REPORT_SIGNATURE_LEN];
+        let mut ecdsa_attestation_key = [0u8; ECDSA_ATTESTATION_KEY_LEN];
+        let mut qe_report_signature = [0u8; QE_REPORT_SIGNATURE_LEN];
 
-        isv_enclave_report_signature.copy_from_slice(&raw_bytes[0..64]);
-        ecdsa_attestation_key.copy_from_slice(&raw_bytes[64..128]);
-        let qe_report = EnclaveReport::from_bytes(&raw_bytes[128..512])?;
-        qe_report_signature.copy_from_slice(&raw_bytes[512..576]);
-        let qe_auth_data = QeAuthData::from_bytes(&raw_bytes[576..])?;
-        let qe_cert_data_start = 576 + 2 + qe_auth_data.size as usize;
+        isv_enclave_report_signature
+            .copy_from_slice(&raw_bytes[0..SIGNATURE_DATA_V3_ECDSA_ATTESTATION_KEY_OFFSET]);
+        ecdsa_attestation_key.copy_from_slice(
+            &raw_bytes[SIGNATURE_DATA_V3_ECDSA_ATTESTATION_KEY_OFFSET
+                ..SIGNATURE_DATA_V3_QE_REPORT_OFFSET],
+        );
+        let qe_report = EnclaveReport::from_bytes(
+            &raw_bytes
+                [SIGNATURE_DATA_V3_QE_REPORT_OFFSET..SIGNATURE_DATA_V3_QE_REPORT_SIGNATURE_OFFSET],
+        )?;
+        qe_report_signature.copy_from_slice(
+            &raw_bytes[SIGNATURE_DATA_V3_QE_REPORT_SIGNATURE_OFFSET
+                ..SIGNATURE_DATA_V3_QE_AUTH_DATA_OFFSET],
+        );
+        let qe_auth_data =
+            QeAuthData::from_bytes(&raw_bytes[SIGNATURE_DATA_V3_QE_AUTH_DATA_OFFSET..])?;
+        let qe_cert_data_start =
+            SIGNATURE_DATA_V3_QE_AUTH_DATA_OFFSET + 2 + qe_auth_data.size as usize;
         let qe_cert_data = CertData::from_bytes(&raw_bytes[qe_cert_data_start..])?;
 
         Ok(QuoteSignatureDataV3 {

@@ -59,7 +59,7 @@ pub fn parse_certchain(pem_certs: &[Pem]) -> crate::Result<Vec<X509Certificate>>
 }
 
 /// Verifies the signature of a certificate using the public key of the signer certificate.
-pub fn verify_certificate(
+pub fn verify_certificate_signature(
     cert: &X509Certificate,
     signer_cert: &X509Certificate,
 ) -> crate::Result<()> {
@@ -97,11 +97,11 @@ pub fn verify_certchain_signature(
     let mut prev_cert = iter.next().unwrap();
     for cert in iter {
         // verify that the previous cert signed the current cert
-        verify_certificate(prev_cert, cert)?;
+        verify_certificate_signature(prev_cert, cert)?;
         prev_cert = cert;
     }
     // verify that the root cert signed the last cert
-    verify_certificate(prev_cert, root_cert)
+    verify_certificate_signature(prev_cert, root_cert)
 }
 
 /// Get the Subject Common Name (CN) from a certificate.
