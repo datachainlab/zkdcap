@@ -4,7 +4,9 @@ use crate::{
 };
 use anyhow::bail;
 use dcap_types::cert::{
-    SgxExtensions, SGX_PCK_CERT_CN, SGX_PCK_PLATFORM_CA_CN, SGX_PCK_PROCESSOR_CA_CN,
+    SgxExtensions, INTEL_SGX_COUNTRY_NAME, INTEL_SGX_LOCALITY_NAME, INTEL_SGX_ORGANIZATION_NAME,
+    INTEL_SGX_PCK_CERT_COMMON_NAME, INTEL_SGX_PCK_PLATFORM_CA_COMMON_NAME,
+    INTEL_SGX_PCK_PROCESSOR_CA_COMMON_NAME, INTEL_SGX_STATE_OR_PROVINCE_NAME,
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Object, Asn1OctetString, Asn1Time},
@@ -202,20 +204,20 @@ pub enum PckCa {
 impl PckCa {
     /// Create a PckCa from the CN of the certificate
     pub fn from_cn(cn: &str) -> Result<Self, anyhow::Error> {
-        if cn == SGX_PCK_PROCESSOR_CA_CN {
+        if cn == INTEL_SGX_PCK_PROCESSOR_CA_COMMON_NAME {
             Ok(PckCa::Processor)
-        } else if cn == SGX_PCK_PLATFORM_CA_CN {
+        } else if cn == INTEL_SGX_PCK_PLATFORM_CA_COMMON_NAME {
             Ok(PckCa::Platform)
         } else {
-            bail!("Invalid PCK CA CN: {}", cn)
+            bail!("Invalid PCK CA CN: {}", cn);
         }
     }
 
     /// Get the CN of the PckCa
     pub fn cn(&self) -> &'static str {
         match self {
-            PckCa::Processor => SGX_PCK_PROCESSOR_CA_CN,
-            PckCa::Platform => SGX_PCK_PLATFORM_CA_CN,
+            PckCa::Processor => INTEL_SGX_PCK_PROCESSOR_CA_COMMON_NAME,
+            PckCa::Platform => INTEL_SGX_PCK_PLATFORM_CA_COMMON_NAME,
         }
     }
 
@@ -298,7 +300,7 @@ pub fn gen_pck_cert(
         Asn1Integer::from_bn(BigNum::from_slice(calc_skid(pck_cert_pkey).as_slice())?.as_ref())?
             .as_ref(),
     )?;
-    builder.set_subject_name(build_x509_name(SGX_PCK_CERT_CN)?.as_ref())?;
+    builder.set_subject_name(build_x509_name(INTEL_SGX_PCK_CERT_COMMON_NAME)?.as_ref())?;
     builder.set_pubkey(pck_cert_pkey)?;
 
     builder.set_not_before(&validity.not_before())?;
@@ -463,10 +465,26 @@ impl Validity {
 pub fn build_x509_name(cn: &str) -> Result<X509Name, ErrorStack> {
     let mut builder = X509Name::builder()?;
     builder.append_entry_by_text("CN", cn)?;
-    builder.append_entry_by_text("O", "Intel Corporation")?;
-    builder.append_entry_by_text("L", "Santa Clara")?;
-    builder.append_entry_by_text("ST", "CA")?;
-    builder.append_entry_by_text("C", "US")?;
+    builder.append_entry_by_text("O", INTEL_SGX_ORGANIZATION_NAME)?;
+    builder.append_entry_by_text("L", INTEL_SGX_LOCALITY_NAME)?;
+    builder.append_entry_by_text("ST", INTEL_SGX_STATE_OR_PROVINCE_NAME)?;
+    builder.append_entry_by_text("C", INTEL_SGX_COUNTRY_NAME)?;
+    Ok(builder.build())
+}
+
+pub fn build_x509_name_with_values(
+    cn: &str,
+    o: &str,
+    l: &str,
+    st: &str,
+    c: &str,
+) -> Result<X509Name, ErrorStack> {
+    let mut builder = X509Name::builder()?;
+    builder.append_entry_by_text("CN", cn)?;
+    builder.append_entry_by_text("O", o)?;
+    builder.append_entry_by_text("L", l)?;
+    builder.append_entry_by_text("ST", st)?;
+    builder.append_entry_by_text("C", c)?;
     Ok(builder.build())
 }
 

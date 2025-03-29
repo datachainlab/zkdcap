@@ -1,11 +1,21 @@
 use crate::crypto::verify_p256_signature_der;
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use core::ops::{BitAnd, BitOr, Deref};
 use core::str::FromStr;
-use dcap_types::cert::{SgxExtensionTcbLevel, SgxExtensions};
+use dcap_types::cert::{
+    SgxExtensionTcbLevel, SgxExtensions, INTEL_SGX_COUNTRY_NAME, INTEL_SGX_LOCALITY_NAME,
+    INTEL_SGX_ORGANIZATION_NAME, INTEL_SGX_PCK_CERT_COMMON_NAME,
+    INTEL_SGX_PCK_PLATFORM_CA_COMMON_NAME, INTEL_SGX_PCK_PROCESSOR_CA_COMMON_NAME,
+    INTEL_SGX_ROOT_CA_COMMON_NAME, INTEL_SGX_STATE_OR_PROVINCE_NAME,
+    INTEL_SGX_TCB_SIGNING_COMMON_NAME,
+};
 use dcap_types::tcb_info::{TcbComponent, TcbInfoV3};
 use dcap_types::TcbInfoV3TcbStatus;
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
+use x509_parser::oid_registry::{
+    OID_X509_COMMON_NAME, OID_X509_COUNTRY_NAME, OID_X509_LOCALITY_NAME,
+    OID_X509_ORGANIZATION_NAME, OID_X509_STATE_OR_PROVINCE_NAME,
+};
 use x509_parser::prelude::*;
 
 pub const KU_NONE: KeyUsageFlags = KeyUsageFlags(0);
@@ -105,20 +115,6 @@ pub fn verify_certchain_signature(
     }
     // verify that the root cert signed the last cert
     verify_certificate_signature(prev_cert, root_cert)
-}
-
-/// Get the Subject Common Name (CN) from a certificate.
-pub fn get_x509_subject_cn(cert: &X509Certificate) -> String {
-    let subject = cert.subject();
-    let cn = subject.iter_common_name().next().unwrap();
-    cn.as_str().unwrap().to_string()
-}
-
-/// Get the Issuer Common Name (CN) from a certificate.
-pub fn get_x509_issuer_cn(cert: &X509Certificate) -> String {
-    let issuer = cert.issuer();
-    let cn = issuer.iter_common_name().next().unwrap();
-    cn.as_str().unwrap().to_string()
 }
 
 /// Get the TCB status and advisory IDs of the SGX or TDX corresponding to the given SVN from the TCB Info V3.
@@ -319,15 +315,321 @@ pub(crate) fn validate_cert_extensions(
     Ok(())
 }
 
+/// Checks if the given X.509 name matches the SGX Root CA DN.
+///
+/// The expected DN is "CN=Intel SGX Root CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+///
+/// # Returns
+/// - `Ok(true)` if the DN structure and all attribute values match the expected DN.
+/// - `Ok(false)` if the DN structure is valid but the Common Name (CN) does not match the expected value.
+/// - `Err(_)` if the DN is malformed or contains unexpected attributes (e.g., missing or out of order).
+pub fn is_sgx_root_ca_dn(name: &X509Name) -> crate::Result<bool> {
+    is_valid_intel_sgx_dn(name, INTEL_SGX_ROOT_CA_COMMON_NAME)
+}
+
+/// Checks if the given X.509 name matches the SGX TCB Signing Cert DN.
+///
+/// The expected DN is "CN=Intel SGX TCB Signing, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+///
+/// # Returns
+/// - `Ok(true)` if the DN structure and all attribute values match the expected DN.
+/// - `Ok(false)` if the DN structure is valid but the Common Name (CN) does not match the expected value.
+/// - `Err(_)` if the DN is malformed or contains unexpected attributes (e.g., missing or out of order).
+pub fn is_sgx_tcb_signing_cert_dn(name: &X509Name) -> crate::Result<bool> {
+    is_valid_intel_sgx_dn(name, INTEL_SGX_TCB_SIGNING_COMMON_NAME)
+}
+
+/// Checks if the given X.509 name matches the SGX PCK Processor CA DN.
+///
+/// The expected DN is "CN=Intel SGX PCK Processor CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+///
+/// # Returns
+/// - `Ok(true)` if the DN structure and all attribute values match the expected DN.
+/// - `Ok(false)` if the DN structure is valid but the Common Name (CN) does not match the expected value.
+/// - `Err(_)` if the DN is malformed or contains unexpected attributes (e.g., missing or out of order).
+pub fn is_sgx_pck_processor_ca_dn(name: &X509Name) -> crate::Result<bool> {
+    is_valid_intel_sgx_dn(name, INTEL_SGX_PCK_PROCESSOR_CA_COMMON_NAME)
+}
+
+/// Checks if the given X.509 name matches the SGX PCK Platform CA DN.
+///
+/// The expected DN is "CN=Intel SGX PCK Platform CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+///
+/// # Returns
+/// - `Ok(true)` if the DN structure and all attribute values match the expected DN.
+/// - `Ok(false)` if the DN structure is valid but the Common Name (CN) does not match the expected value.
+/// - `Err(_)` if the DN is malformed or contains unexpected attributes (e.g., missing or out of order).
+pub fn is_sgx_pck_platform_ca_dn(name: &X509Name) -> crate::Result<bool> {
+    is_valid_intel_sgx_dn(name, INTEL_SGX_PCK_PLATFORM_CA_COMMON_NAME)
+}
+
+/// Checks if the given X.509 name matches the SGX PCK Cert DN.
+///
+/// The expected DN is "CN=Intel SGX PCK Certificate, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+///
+/// # Returns
+/// - `Ok(true)` if the DN structure and all attribute values match the expected DN.
+/// - `Ok(false)` if the DN structure is valid but the Common Name (CN) does not match the expected value.
+/// - `Err(_)` if the DN is malformed or contains unexpected attributes (e.g., missing or out of order).
+pub fn is_sgx_pck_cert_dn(name: &X509Name) -> crate::Result<bool> {
+    is_valid_intel_sgx_dn(name, INTEL_SGX_PCK_CERT_COMMON_NAME)
+}
+
+/// Verifies that the given X.509 DN matches the expected Intel SGX DN structure and values.
+///
+/// This function checks that the DN has exactly five RDN attributes in the expected order:
+/// - Common Name (CN)
+/// - Organization Name (O)
+/// - Locality Name (L)
+/// - State or Province Name (ST)
+/// - Country Name (C)
+///
+/// All attributes except CN must match known Intel SGX values. The CN is compared to `expected_cn`.
+///
+/// # Returns
+/// - `Ok(true)` if all attribute values match, including the CN.
+/// - `Ok(false)` if the DN structure is correct but the CN does not match `expected_cn`.
+/// - `Err(_)` if the DN is malformed (e.g., missing attributes, extra attributes, or unexpected OIDs).
+fn is_valid_intel_sgx_dn(name: &X509Name, expected_cn: &str) -> crate::Result<bool> {
+    let mut iter = name.iter_attributes();
+    let cn = iter.next().ok_or(anyhow!("CN attribute not found"))?;
+    if cn.attr_type() != &OID_X509_COMMON_NAME {
+        bail!(
+            "Expected CN attribute, found: {:?}",
+            cn.attr_type().as_bytes()
+        );
+    }
+    let o = iter.next().ok_or(anyhow!("O attribute not found"))?;
+    if o.attr_type() != &OID_X509_ORGANIZATION_NAME {
+        bail!(
+            "Expected O attribute, found: {:?}",
+            o.attr_type().as_bytes()
+        );
+    }
+    if o.as_str()? != INTEL_SGX_ORGANIZATION_NAME {
+        bail!("Unexpected O: {}", o.as_str().unwrap());
+    }
+    let l = iter.next().ok_or(anyhow!("L attribute not found"))?;
+    if l.attr_type() != &OID_X509_LOCALITY_NAME {
+        bail!(
+            "Expected L attribute, found: {:?}",
+            l.attr_type().as_bytes()
+        );
+    }
+    if l.as_str()? != INTEL_SGX_LOCALITY_NAME {
+        bail!("Unexpected L: {}", l.as_str().unwrap());
+    }
+    let st = iter.next().ok_or(anyhow!("ST attribute not found"))?;
+    if st.attr_type() != &OID_X509_STATE_OR_PROVINCE_NAME {
+        bail!(
+            "Expected ST attribute, found: {:?}",
+            st.attr_type().as_bytes()
+        );
+    }
+    if st.as_str()? != INTEL_SGX_STATE_OR_PROVINCE_NAME {
+        bail!("Unexpected ST: {}", st.as_str().unwrap());
+    }
+    let c = iter.next().ok_or(anyhow!("C attribute not found"))?;
+    if c.attr_type() != &OID_X509_COUNTRY_NAME {
+        bail!(
+            "Expected C attribute, found: {:?}",
+            c.attr_type().as_bytes()
+        );
+    }
+    if c.as_str()? != INTEL_SGX_COUNTRY_NAME {
+        bail!("Unexpected C: {}", c.as_str().unwrap());
+    }
+    if iter.next().is_some() {
+        bail!("Unexpected attributes found in DN");
+    }
+    Ok(cn.as_str()? == expected_cn)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use dcap_collaterals::{
-        certs::{build_x509_name, gen_skid, Validity},
+        certs::{build_x509_name, build_x509_name_with_values, gen_skid, Validity},
         openssl::x509::X509,
         utils::gen_key,
     };
     use dcap_types::utils::{parse_crl_der, parse_x509_der};
+
+    /// "CN=Intel SGX Root CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+    const SGX_ROOT_CA_DN_DER: &[u8] = &[
+        48, 104, 49, 26, 48, 24, 6, 3, 85, 4, 3, 12, 17, 73, 110, 116, 101, 108, 32, 83, 71, 88,
+        32, 82, 111, 111, 116, 32, 67, 65, 49, 26, 48, 24, 6, 3, 85, 4, 10, 12, 17, 73, 110, 116,
+        101, 108, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105, 111, 110, 49, 20, 48, 18, 6, 3,
+        85, 4, 7, 12, 11, 83, 97, 110, 116, 97, 32, 67, 108, 97, 114, 97, 49, 11, 48, 9, 6, 3, 85,
+        4, 8, 12, 2, 67, 65, 49, 11, 48, 9, 6, 3, 85, 4, 6, 19, 2, 85, 83,
+    ];
+    /// "CN=Intel SGX TCB Signing, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+    const SGX_TCB_SIGNING_CERT_DN_DER: &[u8] = &[
+        48, 108, 49, 30, 48, 28, 6, 3, 85, 4, 3, 12, 21, 73, 110, 116, 101, 108, 32, 83, 71, 88,
+        32, 84, 67, 66, 32, 83, 105, 103, 110, 105, 110, 103, 49, 26, 48, 24, 6, 3, 85, 4, 10, 12,
+        17, 73, 110, 116, 101, 108, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105, 111, 110, 49,
+        20, 48, 18, 6, 3, 85, 4, 7, 12, 11, 83, 97, 110, 116, 97, 32, 67, 108, 97, 114, 97, 49, 11,
+        48, 9, 6, 3, 85, 4, 8, 12, 2, 67, 65, 49, 11, 48, 9, 6, 3, 85, 4, 6, 19, 2, 85, 83,
+    ];
+    /// "CN=Intel SGX PCK Processor CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+    const SGX_PCK_PROCESSOR_CA_DN_DER: &[u8] = &[
+        48, 113, 49, 35, 48, 33, 6, 3, 85, 4, 3, 12, 26, 73, 110, 116, 101, 108, 32, 83, 71, 88,
+        32, 80, 67, 75, 32, 80, 114, 111, 99, 101, 115, 115, 111, 114, 32, 67, 65, 49, 26, 48, 24,
+        6, 3, 85, 4, 10, 12, 17, 73, 110, 116, 101, 108, 32, 67, 111, 114, 112, 111, 114, 97, 116,
+        105, 111, 110, 49, 20, 48, 18, 6, 3, 85, 4, 7, 12, 11, 83, 97, 110, 116, 97, 32, 67, 108,
+        97, 114, 97, 49, 11, 48, 9, 6, 3, 85, 4, 8, 12, 2, 67, 65, 49, 11, 48, 9, 6, 3, 85, 4, 6,
+        19, 2, 85, 83,
+    ];
+    /// "CN=Intel SGX PCK Platform CA, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+    const SGX_PCK_PLATFORM_CA_DN_DER: &[u8] = &[
+        48, 112, 49, 34, 48, 32, 6, 3, 85, 4, 3, 12, 25, 73, 110, 116, 101, 108, 32, 83, 71, 88,
+        32, 80, 67, 75, 32, 80, 108, 97, 116, 102, 111, 114, 109, 32, 67, 65, 49, 26, 48, 24, 6, 3,
+        85, 4, 10, 12, 17, 73, 110, 116, 101, 108, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105,
+        111, 110, 49, 20, 48, 18, 6, 3, 85, 4, 7, 12, 11, 83, 97, 110, 116, 97, 32, 67, 108, 97,
+        114, 97, 49, 11, 48, 9, 6, 3, 85, 4, 8, 12, 2, 67, 65, 49, 11, 48, 9, 6, 3, 85, 4, 6, 19,
+        2, 85, 83,
+    ];
+    /// "CN=Intel SGX PCK Certificate, O=Intel Corporation, L=Santa Clara, ST=CA, C=US"
+    const SGX_PCK_CERT_DN_DER: &[u8] = &[
+        48, 112, 49, 34, 48, 32, 6, 3, 85, 4, 3, 12, 25, 73, 110, 116, 101, 108, 32, 83, 71, 88,
+        32, 80, 67, 75, 32, 67, 101, 114, 116, 105, 102, 105, 99, 97, 116, 101, 49, 26, 48, 24, 6,
+        3, 85, 4, 10, 12, 17, 73, 110, 116, 101, 108, 32, 67, 111, 114, 112, 111, 114, 97, 116,
+        105, 111, 110, 49, 20, 48, 18, 6, 3, 85, 4, 7, 12, 11, 83, 97, 110, 116, 97, 32, 67, 108,
+        97, 114, 97, 49, 11, 48, 9, 6, 3, 85, 4, 8, 12, 2, 67, 65, 49, 11, 48, 9, 6, 3, 85, 4, 6,
+        19, 2, 85, 83,
+    ];
+
+    #[test]
+    fn test_sgx_cert_x509_name_validation() {
+        let (_, name) = X509Name::from_der(SGX_ROOT_CA_DN_DER).unwrap();
+        let res = is_sgx_root_ca_dn(&name);
+        assert!(res.is_ok(), "Failed to validate SGX Root CA DN: {:?}", res);
+        assert!(res.unwrap(), "SGX Root CA DN validation failed");
+        let (_, name) = X509Name::from_der(SGX_TCB_SIGNING_CERT_DN_DER).unwrap();
+        let res = is_sgx_tcb_signing_cert_dn(&name);
+        assert!(
+            res.is_ok(),
+            "Failed to validate SGX TCB Signing Cert DN: {:?}",
+            res
+        );
+        assert!(res.unwrap(), "SGX TCB Signing Cert DN validation failed");
+        let (_, name) = X509Name::from_der(SGX_PCK_PROCESSOR_CA_DN_DER).unwrap();
+        let res = is_sgx_pck_processor_ca_dn(&name);
+        assert!(
+            res.is_ok(),
+            "Failed to validate SGX PCK Processor CA DN: {:?}",
+            res
+        );
+        assert!(res.unwrap(), "SGX PCK Processor CA DN validation failed");
+        let (_, name) = X509Name::from_der(SGX_PCK_PLATFORM_CA_DN_DER).unwrap();
+        let res = is_sgx_pck_platform_ca_dn(&name);
+        assert!(
+            res.is_ok(),
+            "Failed to validate SGX PCK Platform CA DN: {:?}",
+            res
+        );
+        assert!(res.unwrap(), "SGX PCK Platform CA DN validation failed");
+        let (_, name) = X509Name::from_der(SGX_PCK_CERT_DN_DER).unwrap();
+        let res = is_sgx_pck_cert_dn(&name);
+        assert!(res.is_ok(), "Failed to validate SGX PCK Cert DN: {:?}", res);
+        assert!(res.unwrap(), "SGX PCK Cert DN validation failed");
+    }
+
+    #[test]
+    fn test_sgx_cert_x509_name_validation_fail() {
+        {
+            let name_der = build_x509_name_with_values(
+                "Invalid Common Name",
+                INTEL_SGX_ORGANIZATION_NAME,
+                INTEL_SGX_LOCALITY_NAME,
+                INTEL_SGX_STATE_OR_PROVINCE_NAME,
+                INTEL_SGX_COUNTRY_NAME,
+            )
+            .unwrap()
+            .to_der()
+            .unwrap();
+            let (_, name) = X509Name::from_der(&name_der).unwrap();
+            let res = is_sgx_root_ca_dn(&name);
+            assert!(res.is_ok(), "Failed to validate SGX Root CA DN: {:?}", res);
+            assert!(!res.unwrap(), "SGX Root CA DN validation should fail");
+        }
+        {
+            let name_der = build_x509_name_with_values(
+                INTEL_SGX_ROOT_CA_COMMON_NAME,
+                "Invalid Org",
+                INTEL_SGX_LOCALITY_NAME,
+                INTEL_SGX_STATE_OR_PROVINCE_NAME,
+                INTEL_SGX_COUNTRY_NAME,
+            )
+            .unwrap()
+            .to_der()
+            .unwrap();
+            let (_, name) = X509Name::from_der(&name_der).unwrap();
+            let res = is_sgx_root_ca_dn(&name);
+            assert!(
+                res.is_err(),
+                "Should fail to validate SGX Root CA DN: {:?}",
+                res
+            );
+        }
+        {
+            let name_der = build_x509_name_with_values(
+                INTEL_SGX_ROOT_CA_COMMON_NAME,
+                INTEL_SGX_ORGANIZATION_NAME,
+                "Invalid Locality",
+                INTEL_SGX_STATE_OR_PROVINCE_NAME,
+                INTEL_SGX_COUNTRY_NAME,
+            )
+            .unwrap()
+            .to_der()
+            .unwrap();
+            let (_, name) = X509Name::from_der(&name_der).unwrap();
+            let res = is_sgx_root_ca_dn(&name);
+            assert!(
+                res.is_err(),
+                "Should fail to validate SGX Root CA DN: {:?}",
+                res
+            );
+        }
+        {
+            let name_der = build_x509_name_with_values(
+                INTEL_SGX_ROOT_CA_COMMON_NAME,
+                INTEL_SGX_ORGANIZATION_NAME,
+                INTEL_SGX_LOCALITY_NAME,
+                "Invalid State",
+                INTEL_SGX_COUNTRY_NAME,
+            )
+            .unwrap()
+            .to_der()
+            .unwrap();
+            let (_, name) = X509Name::from_der(&name_der).unwrap();
+            let res = is_sgx_root_ca_dn(&name);
+            assert!(
+                res.is_err(),
+                "Should fail to validate SGX Root CA DN: {:?}",
+                res
+            );
+        }
+        {
+            let name_der = build_x509_name_with_values(
+                INTEL_SGX_ROOT_CA_COMMON_NAME,
+                INTEL_SGX_ORGANIZATION_NAME,
+                INTEL_SGX_LOCALITY_NAME,
+                INTEL_SGX_STATE_OR_PROVINCE_NAME,
+                "XX",
+            )
+            .unwrap()
+            .to_der()
+            .unwrap();
+            let (_, name) = X509Name::from_der(&name_der).unwrap();
+            let res = is_sgx_root_ca_dn(&name);
+            assert!(
+                res.is_err(),
+                "Should fail to validate SGX Root CA DN: {:?}",
+                res
+            );
+        }
+    }
 
     #[test]
     fn test_root_crl_verify() {
