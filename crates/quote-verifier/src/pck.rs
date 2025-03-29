@@ -1,4 +1,7 @@
-use crate::cert::{get_x509_issuer_cn, get_x509_subject_cn, verify_certchain_signature};
+use crate::cert::{
+    get_x509_issuer_cn, get_x509_subject_cn, validate_cert_extensions, verify_certchain_signature,
+    KU_CRL_SIGN, KU_DIGITAL_SIGNATURE, KU_KEY_CERT_SIGN, KU_NON_REPUDIATION,
+};
 use crate::crl::IntelSgxCrls;
 use crate::verifier::ValidityIntersection;
 use crate::Result;
@@ -41,6 +44,33 @@ pub fn validate_pck_cert<'a>(
     } else if get_x509_issuer_cn(pck_issuer_cert) != get_x509_subject_cn(intel_sgx_root_cert) {
         bail!("PCK Issuer Cert and Root Cert do not match");
     }
+
+    // validate leaf cert extensions
+    validate_cert_extensions(
+        pck_leaf_cert,
+        false,
+        None,
+        KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION,
+    )
+    .context("PCK Leaf cert extension validation failed")?;
+
+    // validate issuer cert extensions
+    validate_cert_extensions(
+        pck_issuer_cert,
+        true,
+        Some(0),
+        KU_KEY_CERT_SIGN | KU_CRL_SIGN,
+    )
+    .context("PCK Issuer cert extension validation failed")?;
+
+    // validate root cert extensions
+    validate_cert_extensions(
+        intel_sgx_root_cert,
+        true,
+        Some(1),
+        KU_KEY_CERT_SIGN | KU_CRL_SIGN,
+    )
+    .context("Intel SGX Root cert extension validation failed")?;
 
     // verify that the cert chain signatures are valid
     verify_certchain_signature(&[pck_leaf_cert, pck_issuer_cert], intel_sgx_root_cert)

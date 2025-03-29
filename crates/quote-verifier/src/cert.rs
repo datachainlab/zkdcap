@@ -1,11 +1,54 @@
 use crate::crypto::verify_p256_signature_der;
 use anyhow::bail;
+use core::ops::{BitAnd, BitOr, Deref};
 use core::str::FromStr;
 use dcap_types::cert::{SgxExtensionTcbLevel, SgxExtensions};
 use dcap_types::tcb_info::{TcbComponent, TcbInfoV3};
 use dcap_types::TcbInfoV3TcbStatus;
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 use x509_parser::prelude::*;
+
+pub const KU_NONE: KeyUsageFlags = KeyUsageFlags(0);
+pub const KU_DIGITAL_SIGNATURE: KeyUsageFlags = KeyUsageFlags(1);
+pub const KU_NON_REPUDIATION: KeyUsageFlags = KeyUsageFlags(1 << 1);
+pub const KU_KEY_ENCIPHERMENT: KeyUsageFlags = KeyUsageFlags(1 << 2);
+pub const KU_DATA_ENCIPHERMENT: KeyUsageFlags = KeyUsageFlags(1 << 3);
+pub const KU_KEY_AGREEMENT: KeyUsageFlags = KeyUsageFlags(1 << 4);
+pub const KU_KEY_CERT_SIGN: KeyUsageFlags = KeyUsageFlags(1 << 5);
+pub const KU_CRL_SIGN: KeyUsageFlags = KeyUsageFlags(1 << 6);
+pub const KU_ENCIPHER_ONLY: KeyUsageFlags = KeyUsageFlags(1 << 7);
+pub const KU_DECIPHER_ONLY: KeyUsageFlags = KeyUsageFlags(1 << 8);
+
+/// KeyUsageFlags is a bitmask of Key Usage flags.
+///
+/// Each flag corresponds to a specific key usage as defined in RFC 5280.
+/// ref. <https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3>
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub struct KeyUsageFlags(pub u16);
+
+impl Deref for KeyUsageFlags {
+    type Target = u16;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl BitOr for KeyUsageFlags {
+    type Output = KeyUsageFlags;
+
+    fn bitor(self, rhs: KeyUsageFlags) -> Self::Output {
+        KeyUsageFlags(self.0 | rhs.0)
+    }
+}
+
+impl BitAnd for KeyUsageFlags {
+    type Output = KeyUsageFlags;
+
+    fn bitand(self, rhs: KeyUsageFlags) -> Self::Output {
+        KeyUsageFlags(self.0 & rhs.0)
+    }
+}
 
 /// Parse a PEM-encoded certificate chain into a vector of `X509Certificate`.
 pub fn parse_certchain(pem_certs: &[Pem]) -> crate::Result<Vec<X509Certificate>> {
@@ -210,9 +253,77 @@ fn match_tdxtcbcomp(tee_tcb_svn: &[u8; 16], tdxtcbcomponents: &[TcbComponent; 16
         .all(|(tee, tcb)| *tee >= tcb.svn)
 }
 
+/// Validates the critical `KeyUsage` and `BasicConstraints` extensions of an X.509 certificate.
+///
+/// This function ensures that the certificate includes both `KeyUsage` and `BasicConstraints`
+/// extensions marked as critical, and that their values match the expected ones.
+///
+/// - For `KeyUsage`, it checks that all bits specified in `expected_ku` are present in the certificate's `KeyUsage`.
+///   Additional bits set in the certificate are allowed and not rejected.
+/// - For `BasicConstraints`, it checks that the `ca` flag and the `path_len_constraint` match exactly.
+///
+/// # Arguments
+/// * `cert` - The X.509 certificate to validate.
+/// * `expected_ca` - Whether the certificate is expected to be a CA.
+/// * `expected_pathlen` - The expected `pathLenConstraint` value (if any).
+/// * `expected_ku` - The expected combination of `KeyUsage` bits that must be present.
+///
+/// # Errors
+/// Returns an error if:
+/// - A required extension is missing,
+/// - A known critical extension does not match the expected values,
+/// - An unknown critical extension is present.
+pub(crate) fn validate_cert_extensions(
+    cert: &X509Certificate,
+    expected_ca: bool,
+    expected_pathlen: Option<u32>,
+    expected_ku: KeyUsageFlags,
+) -> crate::Result<()> {
+    let mut ku_validated = false;
+    let mut bc_validated = false;
+    for ext in cert.extensions().iter().filter(|ext| ext.critical) {
+        match ext.parsed_extension() {
+            ParsedExtension::KeyUsage(ku) => {
+                // check that all expected bits are set
+                if ku.flags & expected_ku.0 != expected_ku.0 {
+                    bail!(
+                        "Certificate Key Usage mismatch: expected={:b}, actual={:b}",
+                        expected_ku.0,
+                        ku.flags
+                    );
+                }
+                ku_validated = true;
+            }
+            ParsedExtension::BasicConstraints(bc) => {
+                if bc.ca != expected_ca || bc.path_len_constraint != expected_pathlen {
+                    bail!(
+                        "Certificate Basic Constraints mismatch: ca={}, pathlen={:?}",
+                        expected_ca,
+                        expected_pathlen
+                    );
+                }
+                bc_validated = true;
+            }
+            _ => bail!("Unknown critical extension: {}", ext.oid),
+        }
+    }
+    if !ku_validated {
+        bail!("Missing critical Key Usage extension");
+    }
+    if !bc_validated {
+        bail!("Missing critical Basic Constraints extension");
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dcap_collaterals::{
+        certs::{build_x509_name, gen_skid, Validity},
+        openssl::x509::X509,
+        utils::gen_key,
+    };
     use dcap_types::utils::{parse_crl_der, parse_x509_der};
 
     #[test]
@@ -225,5 +336,198 @@ mod tests {
             parse_crl_der(include_bytes!("../data/intel_root_ca_crl.der")).unwrap();
 
         assert!(verify_crl_signature(&intel_sgx_root_ca_crl, &intel_sgx_root_ca).is_ok());
+    }
+
+    #[test]
+    fn test_validate_cert_extensions() {
+        use x509_parser::prelude::FromDer;
+
+        // OK: Valid certificate: leaf cert with expected KU and basic constraints
+        {
+            let cert = gen_cert(false, None, KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION);
+            let der = cert.to_der().unwrap();
+            let (_, cert) = X509Certificate::from_der(&der).unwrap();
+
+            let res = validate_cert_extensions(
+                &cert,
+                false,
+                None,
+                KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION,
+            );
+            assert!(res.is_ok(), "valid cert should pass: {:?}", res);
+        }
+
+        // Failed: Missing Key Usage bit (non_repudiation is missing)
+        {
+            let cert = gen_cert(false, None, KU_DIGITAL_SIGNATURE); // only digital_signature
+            let der = cert.to_der().unwrap();
+            let (_, cert) = X509Certificate::from_der(&der).unwrap();
+
+            let res = validate_cert_extensions(
+                &cert,
+                false,
+                None,
+                KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION,
+            );
+            assert!(res.is_err(), "missing KU bit should fail");
+        }
+
+        // Failed: Mismatched BasicConstraints CA flag (expected false, actual true)
+        {
+            let cert = gen_cert(true, None, KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION); // CA = true
+            let der = cert.to_der().unwrap();
+            let (_, cert) = X509Certificate::from_der(&der).unwrap();
+
+            let res = validate_cert_extensions(
+                &cert,
+                false,
+                None,
+                KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION,
+            );
+            assert!(res.is_err(), "CA mismatch should fail");
+        }
+
+        // OK: Mismatched BasicConstraints path length
+        {
+            let cert = gen_cert(true, Some(1), KU_KEY_CERT_SIGN | KU_CRL_SIGN);
+            let der = cert.to_der().unwrap();
+            let (_, cert) = X509Certificate::from_der(&der).unwrap();
+
+            let res = validate_cert_extensions(
+                &cert,
+                true,
+                Some(0), // expected pathlen: 0, actual: 1
+                KU_KEY_CERT_SIGN | KU_CRL_SIGN,
+            );
+            assert!(res.is_err(), "pathlen mismatch should fail");
+        }
+
+        // Failed: Missing Key Usage extension entirely (critical extension missing)
+        {
+            let cert = gen_cert(false, None, KU_NONE); // no KeyUsage
+            let der = cert.to_der().unwrap();
+            let (_, cert) = X509Certificate::from_der(&der).unwrap();
+
+            let res = validate_cert_extensions(&cert, false, None, KU_DIGITAL_SIGNATURE);
+            assert!(res.is_err(), "missing KeyUsage extension should fail");
+        }
+
+        // OK: Valid CA certificate with correct KeyUsage and BasicConstraints
+        {
+            let cert = gen_cert(true, Some(0), KU_KEY_CERT_SIGN | KU_CRL_SIGN);
+            let der = cert.to_der().unwrap();
+            let (_, cert) = X509Certificate::from_der(&der).unwrap();
+
+            let res =
+                validate_cert_extensions(&cert, true, Some(0), KU_KEY_CERT_SIGN | KU_CRL_SIGN);
+            assert!(res.is_ok(), "valid CA cert should pass");
+        }
+
+        // OK: Valid certificate with extra KeyUsage bits
+        {
+            // Expected: digital_signature + non_repudiation
+            // Extra   : key_encipherment + key_agreement
+            let cert = gen_cert(
+                false,
+                None,
+                KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION | KU_KEY_ENCIPHERMENT | KU_KEY_AGREEMENT,
+            );
+
+            let der = cert.to_der().unwrap();
+            let (_, cert) = X509Certificate::from_der(&der).unwrap();
+
+            // We only require digital_signature and non_repudiation to be present.
+            let res = validate_cert_extensions(
+                &cert,
+                false,
+                None,
+                KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION,
+            );
+
+            assert!(
+                res.is_ok(),
+                "cert with extra KeyUsage bits should still pass validation"
+            );
+        }
+    }
+
+    fn gen_cert(ca: bool, path_len: Option<u32>, ku: KeyUsageFlags) -> X509 {
+        use dcap_collaterals::openssl::x509::extension::{BasicConstraints, KeyUsage};
+        use dcap_collaterals::openssl::{
+            asn1::Asn1Integer, bn::BigNum, hash::MessageDigest, x509::X509Builder,
+        };
+
+        let mut builder = X509Builder::new().unwrap();
+        builder.set_version(2).unwrap(); // X.509 v3
+
+        let serial = BigNum::from_u32(1).unwrap(); // Dummy serial
+        let serial = Asn1Integer::from_bn(&serial).unwrap();
+        builder.set_serial_number(&serial).unwrap();
+
+        builder
+            .set_not_before(&Validity::long_duration().not_before())
+            .unwrap();
+        builder
+            .set_not_after(&Validity::long_duration().not_after())
+            .unwrap();
+
+        let pkey = gen_key();
+        builder.set_pubkey(&pkey).unwrap();
+
+        let name = build_x509_name("Test CA").unwrap();
+        builder.set_subject_name(&name).unwrap();
+        builder.set_issuer_name(&name).unwrap();
+        builder.append_extension(gen_skid(&pkey)).unwrap();
+
+        // Key Usage extension
+        let mut key_usage = KeyUsage::new();
+        if ku != KU_NONE {
+            key_usage.critical();
+            if ku & KU_DIGITAL_SIGNATURE != KU_NONE {
+                key_usage.digital_signature();
+            }
+            if ku & KU_NON_REPUDIATION != KU_NONE {
+                key_usage.non_repudiation();
+            }
+            if ku & KU_KEY_ENCIPHERMENT != KU_NONE {
+                key_usage.key_encipherment();
+            }
+            if ku & KU_DATA_ENCIPHERMENT != KU_NONE {
+                key_usage.data_encipherment();
+            }
+            if ku & KU_KEY_AGREEMENT != KU_NONE {
+                key_usage.key_agreement();
+            }
+            if ku & KU_KEY_CERT_SIGN != KU_NONE {
+                key_usage.key_cert_sign();
+            }
+            if ku & KU_CRL_SIGN != KU_NONE {
+                key_usage.crl_sign();
+            }
+            if ku & KU_ENCIPHER_ONLY != KU_NONE {
+                key_usage.encipher_only();
+            }
+            if ku & KU_DECIPHER_ONLY != KU_NONE {
+                key_usage.decipher_only();
+            }
+
+            builder
+                .append_extension(key_usage.build().unwrap())
+                .unwrap();
+        }
+
+        // Basic Constraints extension
+        let mut bc = BasicConstraints::new();
+        bc.critical();
+        if ca {
+            bc.ca();
+        }
+        if let Some(plc) = path_len {
+            bc.pathlen(plc);
+        }
+        builder.append_extension(bc.build().unwrap()).unwrap();
+
+        builder.sign(&pkey, MessageDigest::sha256()).unwrap();
+        builder.build()
     }
 }

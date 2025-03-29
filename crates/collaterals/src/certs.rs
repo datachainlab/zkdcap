@@ -255,11 +255,11 @@ pub fn gen_pck_cert_ca(
     builder.append_extension(
         KeyUsage::new()
             .critical()
-            .digital_signature()
-            .non_repudiation()
+            .key_cert_sign()
+            .crl_sign()
             .build()?,
     )?;
-    builder.append_extension(BasicConstraints::new().critical().build()?)?;
+    builder.append_extension(BasicConstraints::new().critical().ca().pathlen(0).build()?)?;
 
     let ctx = builder.x509v3_context(Some(root_cert), None);
     builder.append_extension(
@@ -460,7 +460,7 @@ impl Validity {
     }
 }
 
-fn build_x509_name(cn: &str) -> Result<X509Name, ErrorStack> {
+pub fn build_x509_name(cn: &str) -> Result<X509Name, ErrorStack> {
     let mut builder = X509Name::builder()?;
     builder.append_entry_by_text("CN", cn)?;
     builder.append_entry_by_text("O", "Intel Corporation")?;
@@ -477,7 +477,7 @@ fn calc_skid(pubkey: &PKeyRef<Private>) -> Vec<u8> {
 }
 
 #[allow(deprecated)]
-fn gen_skid(pubkey: &PKeyRef<Private>) -> X509Extension {
+pub fn gen_skid(pubkey: &PKeyRef<Private>) -> X509Extension {
     let skid = calc_skid(pubkey);
     X509Extension::new(
         None,
