@@ -103,6 +103,10 @@ impl QuoteVerificationOutput {
     ///
     /// Please refer to `to_bytes` for the serialization format.
     pub fn from_bytes(slice: &[u8]) -> Result<QuoteVerificationOutput> {
+        let slice_len = slice.len();
+        if slice_len < QUOTE_BODY_OFFSET {
+            bail!("too short length: {}", slice_len);
+        }
         let mut version = [0; 2];
         version.copy_from_slice(&slice[0..2]);
         let version = u16::from_be_bytes(version);
@@ -130,6 +134,9 @@ impl QuoteVerificationOutput {
         const QUOTE_BODY_OFFSET: usize = 67;
         let (quote_body, advisory_ids_offset) = match u32::from_be_bytes(tee_type) {
             SGX_TEE_TYPE => {
+                if slice_len < QUOTE_BODY_OFFSET + ENCLAVE_REPORT_LEN {
+                    bail!("SGX: unexpected length: {}", slice_len);
+                }
                 let raw_quote_body =
                     &slice[QUOTE_BODY_OFFSET..QUOTE_BODY_OFFSET + ENCLAVE_REPORT_LEN];
                 (
@@ -138,6 +145,9 @@ impl QuoteVerificationOutput {
                 )
             }
             TDX_TEE_TYPE => {
+                if slice_len < QUOTE_BODY_OFFSET + TD10_REPORT_LEN {
+                    bail!("TDX: unexpected length: {}", slice_len);
+                }
                 let raw_quote_body = &slice[QUOTE_BODY_OFFSET..QUOTE_BODY_OFFSET + TD10_REPORT_LEN];
                 (
                     QuoteBody::TD10QuoteBody(TD10ReportBody::from_bytes(raw_quote_body)?),
