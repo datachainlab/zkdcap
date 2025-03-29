@@ -138,6 +138,7 @@ impl Default for EnclaveReport {
     }
 }
 
+/// ref. p.38 <https://download.01.org/intel-sgx/sgx-dcap/1.22/linux/docs/Intel_TDX_DCAP_Quoting_Library_API.pdf>
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct TD10ReportBody {
     /// Describes the TCB of TDX. [16 bytes]
@@ -145,12 +146,10 @@ pub struct TD10ReportBody {
     pub tee_tcb_svn: [u8; 16],
     /// Measurement of the TDX Module. [48 bytes]
     pub mrseam: [u8; 48],
-    /// Measurement of the TDX Module. [48 bytes]
+    /// Zero for Intel TDX Module [48 bytes]
     pub mrsignerseam: [u8; 48],
-    /// Zero for Intel TDX Module [8 bytes]
-    pub seam_attributes: u64,
     /// Must be zero for TDX 1.0 [8 bytes]
-    pub td_attributes: u64,
+    pub seam_attributes: u64,
     /// TD Attributes [8 bytes]
     /// \[0:7\]    : (TUD) TD Under Debug flags.
     ///            If any of the bits in this group are set to 1, the TD is untrusted.
@@ -166,6 +165,10 @@ pub struct TD10ReportBody {
     /// \[32:63]  : (OTHER) Attributes that do not impact the security of the TD
     ///            \[32:62\] - (RESERVED) Reserved for future OTHER flags, must be 0.
     ///            \[63\]    - (PERFMON) TD is allowed to use Perfmon and PERF_METRICS capabilities.
+    pub td_attributes: u64,
+    /// XFAM (eXtended Features Available Mask) is
+    /// defined as a 64b bitmap, which has the same
+    /// format as XCR0 or IA32_XSS MSR.
     pub xfam: u64,
     /// (SHA384) Measurement of the initial contents of the TD. [48 bytes]
     pub mrtd: [u8; 48],
@@ -204,6 +207,9 @@ impl TD10ReportBody {
         mrseam.copy_from_slice(&raw_bytes[16..64]);
         let mut mrsignerseam = [0; 48];
         mrsignerseam.copy_from_slice(&raw_bytes[64..112]);
+        if mrsignerseam != [0; 48] {
+            bail!("mrsignerseam must be 0 for Intel TDX Module");
+        }
         let seam_attributes = u64::from_le_bytes([
             raw_bytes[112],
             raw_bytes[113],
@@ -214,6 +220,9 @@ impl TD10ReportBody {
             raw_bytes[118],
             raw_bytes[119],
         ]);
+        if seam_attributes != 0 {
+            bail!("seam_attributes must be 0 for TDX 1.0");
+        }
         let td_attributes = u64::from_le_bytes([
             raw_bytes[120],
             raw_bytes[121],
@@ -391,8 +400,6 @@ pub(crate) mod tests {
             (
                 any::<[u8; 16]>(),
                 any::<[u8; 48]>(),
-                any::<[u8; 48]>(),
-                any::<u64>(),
                 any::<u64>(),
                 any::<u64>(),
                 any::<[u8; 48]>(),
@@ -409,8 +416,6 @@ pub(crate) mod tests {
                     (
                         tee_tcb_svn,
                         mrseam,
-                        mrsignerseam,
-                        seam_attributes,
                         td_attributes,
                         xfam,
                         mrtd,
@@ -424,8 +429,8 @@ pub(crate) mod tests {
                 )| TD10ReportBody {
                     tee_tcb_svn,
                     mrseam,
-                    mrsignerseam,
-                    seam_attributes,
+                    mrsignerseam: [0; 48],
+                    seam_attributes: 0,
                     td_attributes,
                     xfam,
                     mrtd,
