@@ -93,6 +93,9 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
         match oid.to_id_string().as_str() {
             "1.2.840.113741.1.13.1.1" => {
                 // PPID (OctetString)
+                if ppid.is_some() {
+                    return Err(anyhow!("Duplicate PPID field in SGX Extensions"));
+                }
                 let (rest, octet) = OctetString::from_der(value)
                     .map_err(|e| anyhow!("Failed to parse PPID OctetString: {:?}", e))?;
                 if !rest.is_empty() {
@@ -111,6 +114,9 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
             }
             "1.2.840.113741.1.13.1.2" => {
                 // TCB (Sequence)
+                if tcb.is_some() {
+                    return Err(anyhow!("Duplicate TCB field in SGX Extensions"));
+                }
                 let (rest, tcb_seq) = Sequence::from_der(value)
                     .map_err(|e| anyhow!("Failed to parse TCB sequence: {:?}", e))?;
                 if !rest.is_empty() {
@@ -120,6 +126,9 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
             }
             "1.2.840.113741.1.13.1.3" => {
                 // PCE-ID (OctetString)
+                if pceid.is_some() {
+                    return Err(anyhow!("Duplicate PCE-ID field in SGX Extensions"));
+                }
                 let (rest, octet) = OctetString::from_der(value)
                     .map_err(|e| anyhow!("Failed to parse PCE-ID OctetString: {:?}", e))?;
                 if !rest.is_empty() {
@@ -138,6 +147,9 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
             }
             "1.2.840.113741.1.13.1.4" => {
                 // FMSPC (OctetString)
+                if fmspc.is_some() {
+                    return Err(anyhow!("Duplicate FMSPC field in SGX Extensions"));
+                }
                 let (rest, octet) = OctetString::from_der(value)
                     .map_err(|e| anyhow!("Failed to parse FMSPC OctetString: {:?}", e))?;
                 if !rest.is_empty() {
@@ -156,6 +168,9 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
             }
             "1.2.840.113741.1.13.1.5" => {
                 // SGX Type (Enumerated)
+                if sgx_type.is_some() {
+                    return Err(anyhow!("Duplicate SGX Type field in SGX Extensions"));
+                }
                 let (rest, enumerated) = Enumerated::from_der(value)
                     .map_err(|e| anyhow!("Failed to parse SGX Type Enumerated: {:?}", e))?;
                 if !rest.is_empty() {
@@ -165,6 +180,11 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
             }
             "1.2.840.113741.1.13.1.6" => {
                 // Platform Instance ID (OctetString, Optional)
+                if platform_instance_id.is_some() {
+                    return Err(anyhow!(
+                        "Duplicate Platform Instance ID field in SGX Extensions"
+                    ));
+                }
                 let (rest, octet) = OctetString::from_der(value).map_err(|e| {
                     anyhow!("Failed to parse Platform Instance ID OctetString: {:?}", e)
                 })?;
@@ -184,6 +204,9 @@ pub fn parse_sgx_extensions(sgx_extensions_bytes: &[u8]) -> Result<SgxExtensions
             }
             "1.2.840.113741.1.13.1.7" => {
                 // Configuration (Sequence, Optional)
+                if configuration.is_some() {
+                    return Err(anyhow!("Duplicate Configuration field in SGX Extensions"));
+                }
                 let (rest, config_seq) = Sequence::from_der(value)
                     .map_err(|e| anyhow!("Failed to parse Configuration sequence: {:?}", e))?;
                 if !rest.is_empty() {
