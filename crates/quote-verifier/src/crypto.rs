@@ -1,4 +1,5 @@
 use crate::Result;
+use anyhow::bail;
 use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
@@ -13,6 +14,7 @@ use sha3::Keccak256;
 /// # Returns
 /// * Returns Ok(()) if the signature is valid.
 pub fn verify_p256_signature_bytes(data: &[u8], signature: &[u8], public_key: &[u8]) -> Result<()> {
+    validate_uncompressed_ec_pubkey(public_key)?;
     let signature = Signature::from_bytes(signature.into())?;
     let verifying_key = VerifyingKey::from_sec1_bytes(public_key)?;
     Ok(verifying_key.verify(data, &signature)?)
@@ -32,6 +34,7 @@ pub fn verify_p256_signature_der(
     signature_der: &[u8],
     public_key: &[u8],
 ) -> Result<()> {
+    validate_uncompressed_ec_pubkey(public_key)?;
     let signature = Signature::from_der(signature_der)?;
     let verifying_key = VerifyingKey::from_sec1_bytes(public_key)?;
     Ok(verifying_key.verify(data, &signature)?)
@@ -55,4 +58,16 @@ pub fn keccak256sum(data: &[u8]) -> [u8; 32] {
     let mut output = [0; 32];
     output.copy_from_slice(&result);
     output
+}
+
+fn validate_uncompressed_ec_pubkey(public_key: &[u8]) -> Result<()> {
+    if public_key.len() != 65 {
+        bail!("Public key must be 65 bytes: got {}", public_key.len());
+    } else if public_key[0] != 0x04 {
+        bail!(
+            "Public key must be uncompressed: got 0x{:02x}",
+            public_key[0]
+        );
+    }
+    Ok(())
 }
