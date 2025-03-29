@@ -92,6 +92,9 @@ pub fn verify_certchain_signature(
     certs: &[&X509Certificate],
     root_cert: &X509Certificate,
 ) -> crate::Result<()> {
+    if certs.is_empty() {
+        bail!("Empty certificate chain");
+    }
     // verify that the cert chain is valid
     let mut iter = certs.iter();
     let mut prev_cert = iter.next().unwrap();
