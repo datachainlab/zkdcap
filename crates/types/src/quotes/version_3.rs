@@ -141,6 +141,11 @@ impl QuoteSignatureDataV3 {
             QeAuthData::from_bytes(&raw_bytes[SIGNATURE_DATA_V3_QE_AUTH_DATA_OFFSET..])?;
         let qe_cert_data_start =
             SIGNATURE_DATA_V3_QE_AUTH_DATA_OFFSET + 2 + qe_auth_data.size as usize;
+        if len < qe_cert_data_start {
+            return Err(anyhow!(
+                "Invalid quote signature data: qe_cert_data_start exceeds buffer length"
+            ));
+        }
         let qe_cert_data = CertData::from_bytes(&raw_bytes[qe_cert_data_start..])?;
 
         Ok(QuoteSignatureDataV3 {
