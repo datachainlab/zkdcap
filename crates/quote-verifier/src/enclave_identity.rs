@@ -62,6 +62,14 @@ pub fn validate_qe_identityv2(
 /// Get the TCB status for matching the ISV SVN of the QE report
 ///
 /// ref. <https://github.com/intel/SGX-TDX-DCAP-QuoteVerificationLibrary/blob/812e0fa140a284b772b2d8b08583c761e23ec3b3/Src/AttestationLibrary/src/Verifiers/EnclaveIdentityV2.cpp#L326>
+///
+/// # Arguments
+/// * `qe_report_isv_svn` - The ISV SVN of the QE report.
+/// * `qe_identity_v2_tcb_levels` - The TCB levels from the QE identity v2.
+///   **This MUST be sorted in descending order by ISV SVN**.
+///
+/// # Returns
+/// * Returns the TCB status and advisory IDs for the matching ISV SVN.
 pub fn get_qe_tcb_status(
     qe_report_isv_svn: u16,
     qe_identity_v2_tcb_levels: &[EnclaveIdentityV2TcbLevelItem],

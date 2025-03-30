@@ -3,7 +3,7 @@ use crate::{
     Result, ENCLAVE_REPORT_LEN, QUOTE_FORMAT_V4, QUOTE_HEADER_LEN, SGX_TEE_TYPE, TD10_REPORT_LEN,
     TDX_TEE_TYPE,
 };
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 
 const SGX_SIGNATURE_LEN_OFFSET: usize = QUOTE_HEADER_LEN + ENCLAVE_REPORT_LEN;
 const TDX_SIGNATURE_LEN_OFFSET: usize = QUOTE_HEADER_LEN + TD10_REPORT_LEN;
@@ -70,14 +70,20 @@ impl QuoteV4 {
             raw_bytes[sig_len_offset + 3],
         ]);
         let sig_slice_offset = sig_len_offset + 4;
-        if raw_bytes.len() < sig_slice_offset + signature_len as usize {
+        let quote_end_offset = sig_slice_offset
+            .checked_add(signature_len as usize)
+            .ok_or_else(|| {
+                anyhow!(
+                    "Invalid Quote v4 length: signature length overflow: {}",
+                    signature_len
+                )
+            })?;
+        if raw_bytes.len() < quote_end_offset {
             bail!(
-                "Invalid Quote v4 length: signature data: expected {}, got {}",
-                signature_len,
-                raw_bytes.len() - sig_slice_offset,
+                "Invalid Quote v4 length: quote end offset: {}",
+                quote_end_offset
             );
         }
-        let quote_end_offset = sig_slice_offset + signature_len as usize;
         let signature =
             QuoteSignatureDataV4::from_bytes(&raw_bytes[sig_slice_offset..quote_end_offset])?;
 
@@ -242,7 +248,7 @@ mod tests {
                 QuoteSignatureDataV4 {
                     quote_signature,
                     ecdsa_attestation_key,
-                    qe_cert_data: CertData::new(6, qe_cert_data.to_bytes()),
+                    qe_cert_data: CertData::new(6, qe_cert_data.to_bytes()).unwrap(),
                 }
             })
     }

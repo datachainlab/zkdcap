@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use dcap_types::enclave_identity::EnclaveIdentityV2;
 use dcap_types::tcb_info::TcbInfoV3;
 use dcap_types::utils::{parse_crl_der, parse_x509_der};
@@ -86,15 +86,15 @@ impl QvCollateral {
 
         let mut offset = 4 * 6usize;
 
-        if slice.len()
-            < offset
-                + tcb_info_json_len
-                + qe_identity_json_len
-                + sgx_intel_root_ca_der_len
-                + sgx_tcb_signing_der_len
-                + sgx_intel_root_ca_crl_der_len
-                + sgx_pck_crl_der_len
-        {
+        let total_len = offset
+            .checked_add(tcb_info_json_len)
+            .and_then(|len| len.checked_add(qe_identity_json_len))
+            .and_then(|len| len.checked_add(sgx_intel_root_ca_der_len))
+            .and_then(|len| len.checked_add(sgx_tcb_signing_der_len))
+            .and_then(|len| len.checked_add(sgx_intel_root_ca_crl_der_len))
+            .and_then(|len| len.checked_add(sgx_pck_crl_der_len))
+            .ok_or_else(|| anyhow!("Overflow in QvCollateral length calculation"))?;
+        if slice.len() < total_len {
             bail!("Invalid QvCollateral length");
         }
 
@@ -162,5 +162,19 @@ impl QvCollateral {
     /// Returns the SGX PCK Platform/Processor CA CRL
     pub fn get_sgx_pck_crl(&self) -> Result<CertificateRevocationList> {
         parse_crl_der(&self.sgx_pck_crl_der)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_qv_collateral_serde() {
+        let bz = include_bytes!("../data/qv_collateral.bin");
+        let res = QvCollateral::from_bytes(bz);
+        assert!(res.is_ok());
+        let bz2 = res.unwrap().to_bytes();
+        assert_eq!(bz, bz2.as_slice());
     }
 }

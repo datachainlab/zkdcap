@@ -1,9 +1,12 @@
-use crate::cert::{get_x509_issuer_cn, get_x509_subject_cn, verify_certchain_signature};
+use crate::cert::{
+    is_sgx_pck_cert_dn, is_sgx_pck_platform_ca_dn, is_sgx_pck_processor_ca_dn,
+    validate_cert_extensions, verify_certchain_signature, KU_CRL_SIGN, KU_DIGITAL_SIGNATURE,
+    KU_KEY_CERT_SIGN, KU_NON_REPUDIATION,
+};
 use crate::crl::IntelSgxCrls;
 use crate::verifier::ValidityIntersection;
 use crate::Result;
 use anyhow::{bail, Context};
-use dcap_types::cert::{SGX_PCK_CERT_CN, SGX_PCK_PLATFORM_CA_CN, SGX_PCK_PROCESSOR_CA_CN};
 use x509_parser::certificate::X509Certificate;
 
 /**
@@ -26,21 +29,47 @@ pub fn validate_pck_cert<'a>(
     intel_sgx_root_cert: &X509Certificate<'_>,
     intel_crls: &IntelSgxCrls,
 ) -> Result<ValidityIntersection> {
-    let pck_subject_cn = get_x509_subject_cn(pck_leaf_cert);
-    let pck_issuer_cn = get_x509_issuer_cn(pck_leaf_cert);
-
-    if pck_subject_cn != SGX_PCK_CERT_CN {
+    if !is_sgx_pck_cert_dn(pck_leaf_cert.subject())? {
         bail!("PCK Leaf Cert is not a PCK Cert");
-    } else if pck_issuer_cn != SGX_PCK_PROCESSOR_CA_CN && pck_issuer_cn != SGX_PCK_PLATFORM_CA_CN {
+    } else if !is_sgx_pck_processor_ca_dn(pck_leaf_cert.issuer())?
+        && !is_sgx_pck_platform_ca_dn(pck_leaf_cert.issuer())?
+    {
         bail!("PCK Issuer Cert is not a PCK CA Cert");
     }
 
     // we'll check what kind of cert is it, and validate the appropriate CRL
-    if pck_issuer_cn != get_x509_subject_cn(pck_issuer_cert) {
+    if pck_leaf_cert.issuer() != pck_issuer_cert.subject() {
         bail!("PCK Leaf Cert and Issuer Cert do not match");
-    } else if get_x509_issuer_cn(pck_issuer_cert) != get_x509_subject_cn(intel_sgx_root_cert) {
+    } else if pck_issuer_cert.issuer() != intel_sgx_root_cert.subject() {
         bail!("PCK Issuer Cert and Root Cert do not match");
     }
+
+    // validate leaf cert extensions
+    validate_cert_extensions(
+        pck_leaf_cert,
+        false,
+        None,
+        KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION,
+    )
+    .context("PCK Leaf cert extension validation failed")?;
+
+    // validate issuer cert extensions
+    validate_cert_extensions(
+        pck_issuer_cert,
+        true,
+        Some(0),
+        KU_KEY_CERT_SIGN | KU_CRL_SIGN,
+    )
+    .context("PCK Issuer cert extension validation failed")?;
+
+    // validate root cert extensions
+    validate_cert_extensions(
+        intel_sgx_root_cert,
+        true,
+        Some(1),
+        KU_KEY_CERT_SIGN | KU_CRL_SIGN,
+    )
+    .context("Intel SGX Root cert extension validation failed")?;
 
     // verify that the cert chain signatures are valid
     verify_certchain_signature(&[pck_leaf_cert, pck_issuer_cert], intel_sgx_root_cert)

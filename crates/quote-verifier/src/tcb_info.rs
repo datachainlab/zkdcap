@@ -1,14 +1,15 @@
+use crate::cert::{
+    is_sgx_tcb_signing_cert_dn, validate_cert_extensions, verify_certificate_signature,
+    KU_DIGITAL_SIGNATURE, KU_NON_REPUDIATION,
+};
 use crate::crl::IntelSgxCrls;
 use crate::crypto::verify_p256_signature_bytes;
 use crate::verifier::ValidityIntersection;
 use crate::Result;
 use anyhow::{bail, Context};
-use dcap_types::cert::SGX_TCB_SIGNING_CERT_CN;
 use dcap_types::tcb_info::TcbInfoV3;
 use dcap_types::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 use x509_parser::prelude::X509Certificate;
-
-use crate::cert::{get_x509_issuer_cn, get_x509_subject_cn, verify_certificate};
 
 /**
  * Validate the TCB Signing Certificate with the Root Certificate
@@ -29,13 +30,23 @@ pub fn validate_tcb_signing_certificate(
     intel_sgx_root_cert: &X509Certificate,
     intel_crls: &IntelSgxCrls,
 ) -> Result<ValidityIntersection> {
-    if get_x509_subject_cn(tcb_signing_cert) != SGX_TCB_SIGNING_CERT_CN {
+    if !is_sgx_tcb_signing_cert_dn(tcb_signing_cert.subject())? {
         bail!("Invalid TCB Signing Cert Subject");
-    } else if get_x509_issuer_cn(tcb_signing_cert) != get_x509_subject_cn(intel_sgx_root_cert) {
+    } else if tcb_signing_cert.issuer() != intel_sgx_root_cert.subject() {
         bail!("TCB Signing Cert and Root Cert do not match");
     }
+
+    // Explicitly validate critical X509 extensions according to Intel SGX specification
+    validate_cert_extensions(
+        tcb_signing_cert,
+        false,
+        None,
+        KU_DIGITAL_SIGNATURE | KU_NON_REPUDIATION,
+    )
+    .context("TCB Signing cert extension validation failed")?;
+
     // check that the tcb signing cert is signed by the root cert
-    verify_certificate(tcb_signing_cert, intel_sgx_root_cert)
+    verify_certificate_signature(tcb_signing_cert, intel_sgx_root_cert)
         .context("Invalid TCB Signing Cert")?;
     // check that the tcb signing cert is not revoked by the `self.sgx_root_ca_crl` CRL
     if intel_crls.is_cert_revoked(tcb_signing_cert)? {
