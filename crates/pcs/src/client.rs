@@ -20,14 +20,14 @@ pub struct PCSClient {
     pcs_or_pccs_url: String,
     /// The URL of the Intel SGX Certificates Service.
     certs_service_url: String,
-    /// Whether to use the early update or standard update to get the TCB info.
-    is_early_update: bool,
+    /// The target TCB evaluation data number. If None, the latest TCB evaluation data will be used.
+    target_tcb_evaluation_data_number: Option<u32>,
 }
 
 impl Default for PCSClient {
     /// Default PCSClient uses Intel's PCS and Certificates Service URLs.
     fn default() -> Self {
-        PCSClient::new(INTEL_SGX_PCS_URL, INTEL_SGX_CERTS_URL, false)
+        PCSClient::new(INTEL_SGX_PCS_URL, INTEL_SGX_CERTS_URL, None)
     }
 }
 
@@ -37,12 +37,16 @@ impl PCSClient {
     /// # Arguments
     /// * `pcs_or_pccs_url` - The URL of the Provisioning Certification Service (PCS) or Provisioning Certification Caching Service (PCCS).
     /// * `certs_service_url` - The URL of the Intel SGX Certificates Service.
-    /// * `is_early_update` - Whether to use the early update policy.
-    pub fn new(pcs_or_pccs_url: &str, certs_service_url: &str, is_early_update: bool) -> Self {
+    /// * `target_tcb_evaluation_data_number` - The target TCB evaluation data number. If None, the latest TCB evaluation data will be used.
+    pub fn new(
+        pcs_or_pccs_url: &str,
+        certs_service_url: &str,
+        target_tcb_evaluation_data_number: Option<u32>,
+    ) -> Self {
         PCSClient {
             pcs_or_pccs_url: pcs_or_pccs_url.trim_end_matches('/').to_string(),
             certs_service_url: certs_service_url.trim_end_matches('/').to_string(),
-            is_early_update,
+            target_tcb_evaluation_data_number,
         }
     }
 
@@ -82,13 +86,13 @@ impl PCSClient {
         let sgx_extensions = extract_sgx_extensions(pck_cert)
             .map_err(|e| anyhow!("cannot extract SGX extensions: {}", e))?;
 
-        let update_policy = self.update_policy();
+        let tcb_evaludation_policy = self.tcb_evaludation_policy();
 
         // get the TCB info of the platform
         let (tcb_info_json, sgx_tcb_signing_der) = {
             let fmspc = hex::encode_upper(sgx_extensions.fmspc);
             let res = http_get(format!(
-                "{base_url}/tcb?fmspc={fmspc}&update={update_policy}"
+                "{base_url}/tcb?fmspc={fmspc}&{tcb_evaludation_policy}"
             ))?;
             let issuer_chain =
                 extract_raw_certs(get_header(&res, "TCB-Info-Issuer-Chain")?.as_bytes())?;
@@ -97,7 +101,7 @@ impl PCSClient {
 
         // get the QE identity
         let qe_identity_json =
-            http_get(format!("{base_url}/qe/identity?update={update_policy}"))?.text()?;
+            http_get(format!("{base_url}/qe/identity?{tcb_evaludation_policy}"))?.text()?;
 
         let pck_crl_url = if is_sgx_pck_platform_ca_dn(pck_cert_issuer.subject())? {
             format!("{pcs_url}/sgx/certification/v4/pckcrl?ca=platform&encoding=der")
@@ -179,11 +183,11 @@ impl PCSClient {
         })
     }
 
-    fn update_policy(&self) -> &str {
-        if self.is_early_update {
-            "early"
+    fn tcb_evaludation_policy(&self) -> String {
+        if let Some(target_tcb_evaluation_data_number) = self.target_tcb_evaluation_data_number {
+            format!("tcbEvaluationDataNumber={target_tcb_evaluation_data_number}")
         } else {
-            "standard"
+            "update=early".to_string()
         }
     }
 }
