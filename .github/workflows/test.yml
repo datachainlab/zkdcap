@@ -38,4 +38,4 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: docker run -v .:/root/zkdcap -w /root/zkdcap -t i386/rust:1.84 cargo test
+      - run: docker run -v .:/root/zkdcap -w /root/zkdcap -t i386/rust:1.89 cargo test
