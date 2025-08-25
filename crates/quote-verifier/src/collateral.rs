@@ -145,22 +145,22 @@ impl QvCollateral {
     }
 
     /// Returns the SGX Intel Root CA certificate
-    pub fn get_sgx_intel_root_ca(&self) -> Result<X509Certificate> {
+    pub fn get_sgx_intel_root_ca(&self) -> Result<X509Certificate<'_>> {
         parse_x509_der(&self.sgx_intel_root_ca_der)
     }
 
     /// Returns the SGX TCB Signing certificate
-    pub fn get_sgx_tcb_signing(&self) -> Result<X509Certificate> {
+    pub fn get_sgx_tcb_signing(&self) -> Result<X509Certificate<'_>> {
         parse_x509_der(&self.sgx_tcb_signing_der)
     }
 
     /// Returns the SGX Intel Root CA CRL
-    pub fn get_sgx_intel_root_ca_crl(&self) -> Result<CertificateRevocationList> {
+    pub fn get_sgx_intel_root_ca_crl(&self) -> Result<CertificateRevocationList<'_>> {
         parse_crl_der(&self.sgx_intel_root_ca_crl_der)
     }
 
     /// Returns the SGX PCK Platform/Processor CA CRL
-    pub fn get_sgx_pck_crl(&self) -> Result<CertificateRevocationList> {
+    pub fn get_sgx_pck_crl(&self) -> Result<CertificateRevocationList<'_>> {
         parse_crl_der(&self.sgx_pck_crl_der)
     }
 }
