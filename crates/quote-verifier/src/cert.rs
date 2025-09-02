@@ -60,12 +60,62 @@ impl BitAnd for KeyUsageFlags {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct OwnedX509Certificate {
+    der: Vec<u8>,
+    cert: X509Certificate<'static>,
+}
+
+impl OwnedX509Certificate {
+    pub fn new(der: &[u8]) -> crate::Result<Self> {
+        let (rest, cert) = X509Certificate::from_der(der)?;
+        if !rest.is_empty() {
+            bail!("Extra data after certificate");
+        }
+        let owned_cert = unsafe { std::mem::transmute::<X509Certificate, X509Certificate<'static>>(cert) };
+        Ok(Self {
+            der: der.to_vec(),
+            cert: owned_cert,
+        })
+    }
+
+    pub fn as_x509(&self) -> &X509Certificate<'static> {
+        &self.cert
+    }
+}
+
 /// Parse a PEM-encoded certificate chain into a vector of `X509Certificate`.
-pub fn parse_certchain(pem_certs: &[Pem]) -> crate::Result<Vec<X509Certificate>> {
-    Ok(pem_certs
+pub fn parse_certchain(pem_certs: &[Pem]) -> crate::Result<Vec<OwnedX509Certificate>> {
+    pem_certs
         .iter()
-        .map(|pem| pem.parse_x509())
-        .collect::<Result<_, _>>()?)
+        .map(|pem| OwnedX509Certificate::new(&pem.contents))
+        .collect::<Result<_, _>>()
+}
+
+/// Parse a DER-encoded certificate chain into a vector of `X509Certificate`.
+/// This is used for Type 4 certificates which contain concatenated DER certificates.
+pub fn parse_der_certchain(der_data: &[u8]) -> crate::Result<Vec<OwnedX509Certificate>> {
+    let mut certs = Vec::new();
+    let mut remaining = der_data;
+    
+    while !remaining.is_empty() {
+        match OwnedX509Certificate::new(remaining) {
+            Ok(owned_cert) => {
+                let len = owned_cert.der.len();
+                certs.push(owned_cert);
+                remaining = &remaining[len..];
+            }
+            Err(_) => {
+                break;
+            }
+        }
+    }
+    
+    if certs.is_empty() {
+        bail!("No valid certificates found in DER data");
+    }
+    
+    Ok(certs)
 }
 
 /// Verifies the signature of a certificate using the public key of the signer certificate.

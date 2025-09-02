@@ -1,0 +1,27 @@
+[package]
+name = "livyimpl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dcap-types = { path = "../crates/types" }
+dcap-quote-verifier = { path = "../crates/quote-verifier" }
+dcap-pcs = { path = "../crates/pcs" }
+dcap-collaterals = { path = "../crates/collaterals" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = "0.4"
+chrono = "0.4"
+anyhow = "1"
+tokio = { version = "1.0", features = ["full"] }
+dcap-qvl = "0.3.2"
+pem = "3.0"
+rustls-webpki = "0.102.8"
+base64 = "0.22.1"
+
+
+
+
+[[bin]]
+name = "livyimpl"
+path = "src/main.rs"

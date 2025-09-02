@@ -1,7 +1,7 @@
 pub mod version_3;
 pub mod version_4;
 
-use crate::cert::{parse_certchain, verify_crl_signature};
+use crate::cert::{parse_certchain, parse_der_certchain, verify_crl_signature};
 use crate::collateral::QvCollateral;
 use crate::crl::IntelSgxCrls;
 use crate::crypto::{sha256sum, verify_p256_signature_bytes};
@@ -24,6 +24,7 @@ use dcap_types::EnclaveIdentityV2TcbStatus;
 use version_3::verify_quote_v3;
 use version_4::verify_quote_v4;
 use x509_parser::certificate::X509Certificate;
+use dcap_types::quotes::QeReportCertData;
 
 /// Verify the quote with the given collateral data and return the verification output.
 ///
@@ -93,22 +94,57 @@ fn verify_quote_common(
     current_time: u64,
 ) -> Result<(QeTcb, SgxExtensions, TcbInfo, Validity)> {
     // get the certchain embedded in the ecda quote signature data
-    // this can be one of 5 types, and we only support type 5
+    // this can be one of 5 types, and we support types 4 and 5
     // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/aa239d25a437a28f3f4de92c38f5b6809faac842/QuoteGeneration/quote_wrapper/common/inc/sgx_quote_3.h#L63C4-L63C112
-    if qe_cert_data.cert_data_type != 5 {
-        bail!("QE Cert Type must be 5");
+    if ![4, 5].contains(&qe_cert_data.cert_data_type) {
+        bail!("QE Cert Type must be 4 or 5");
     }
-    let certchain_pems = parse_pem(&qe_cert_data.cert_data)?;
-    let (pck_leaf_cert, pck_issuer_cert) = {
-        let mut certchain = parse_certchain(&certchain_pems)?;
-        // certchain in the cert_data whose type is 5 should have 3 certificates:
-        // PCK leaf, PCK issuer, and Root CA
-        if certchain.len() != 3 {
-            bail!("Invalid Certchain length");
+    
+    // Update the parsing logic to handle type 6 recursively
+
+    let (pck_leaf_cert, pck_issuer_cert) = match qe_cert_data.cert_data_type {
+        5 => {
+            // Type 5: PEM format
+            let certchain_pems = parse_pem(&qe_cert_data.cert_data)?;
+            let certchain = parse_certchain(&certchain_pems)?;
+            if certchain.len() != 3 {
+                bail!("Invalid Certchain length for Type 5");
+            }
+            (certchain[0].clone(), certchain[1].clone())
         }
-        // extract the leaf and issuer certificates, but ignore the root cert as we already have it
-        (certchain.remove(0), certchain.remove(0))
+        4 => {
+            // Type 4: DER format
+            let certchain = parse_der_certchain(&qe_cert_data.cert_data)?;
+            if certchain.len() != 3 {
+                bail!("Invalid Certchain length for Type 4");
+            }
+            (certchain[0].clone(), certchain[1].clone())
+        }
+        6 => {
+            // Type 6: QeReportCertData - recursive parsing
+            let qe_report_cert_data = QeReportCertData::from_bytes(&qe_cert_data.cert_data)?;
+            // Recursively parse the nested cert_data
+            let nested_cert_type = qe_report_cert_data.qe_cert_data.cert_data_type;
+            if ![4, 5].contains(&nested_cert_type) {
+                bail!("Nested QE Cert Type in Type 6 must be 4 or 5");
+            }
+            let nested_cert_data = &qe_report_cert_data.qe_cert_data.cert_data;
+            let certchain = if nested_cert_type == 5 {
+                let certchain_pems = parse_pem(nested_cert_data)?;
+                parse_certchain(&certchain_pems)?
+            } else {
+                parse_der_certchain(nested_cert_data)?
+            };
+            if certchain.len() != 3 {
+                bail!("Invalid Certchain length for Type 6");
+            }
+            (certchain[0].clone(), certchain[1].clone())
+        }
+        _ => bail!("QE Cert Type must be 4, 5, or 6"),
     };
+
+    let pck_leaf_cert = pck_leaf_cert.as_x509();
+    let pck_issuer_cert = pck_issuer_cert.as_x509();
 
     let intel_sgx_root_cert = collateral.get_sgx_intel_root_ca()?;
     let intel_crls = {

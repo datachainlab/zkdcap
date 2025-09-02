@@ -145,6 +145,8 @@ fn validate_quote_header_v4(quote_header: &QuoteHeader) -> Result<()> {
 mod tests {
     use super::*;
     use dcap_types::utils::pem_to_der;
+    use chrono::Utc;
+    use dcap_pcs::client::PCSClient; 
 
     #[test]
     fn test_verify_quote_v4_intel() {
@@ -178,5 +180,30 @@ mod tests {
         );
         let vo = res.unwrap();
         assert_eq!(verified_output, vo);
+    }
+
+    #[test]
+    fn test_livy_quote_v4() {
+        #[derive(serde::Deserialize)]
+        struct LivyAttestation {
+            quote: String,
+        }
+
+        let attestation: LivyAttestation = serde_json::from_str(&include_str!("./livyquotes/livy.json")).unwrap();
+        let hex_quote = hex::decode(attestation.quote).unwrap();
+        let quote = QuoteV4::from_bytes(&hex_quote).unwrap().0;
+        let raw_collateral = PCSClient::default().get_collateral(false, &quote.signature.qe_cert_data).unwrap();
+        let collaterals = QvCollateral {
+            tcb_info_json: raw_collateral.tcb_info_json,
+            qe_identity_json: raw_collateral.qe_identity_json,
+            sgx_intel_root_ca_der: raw_collateral.sgx_intel_root_ca_der,
+            sgx_tcb_signing_der: raw_collateral.sgx_tcb_signing_der,
+            sgx_intel_root_ca_crl_der: raw_collateral.sgx_intel_root_ca_crl_der,
+            sgx_pck_crl_der: raw_collateral.sgx_pck_crl_der,
+        };
+
+        let current_time = Utc::now().timestamp().try_into().unwrap();
+        let res = verify_quote_v4(&quote, &collaterals, current_time);
+        assert!(res.is_ok(), "{:?}", res);
     }
 }

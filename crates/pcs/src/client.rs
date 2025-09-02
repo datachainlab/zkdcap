@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Error};
 use dcap_quote_verifier::cert::{
-    is_sgx_pck_platform_ca_dn, is_sgx_pck_processor_ca_dn, parse_certchain,
+    is_sgx_pck_platform_ca_dn, is_sgx_pck_processor_ca_dn, parse_certchain, parse_der_certchain,
 };
 use dcap_quote_verifier::collateral::QvCollateral;
 use dcap_quote_verifier::sgx_extensions::extract_sgx_extensions;
@@ -66,21 +66,29 @@ impl PCSClient {
         } else {
             format!("{pcs_url}/tdx/certification/v4")
         };
-        if qe_cert_data.cert_data_type != 5 {
-            bail!("QE Cert Type must be 5".to_string());
+        if ![4, 5].contains(&qe_cert_data.cert_data_type) {
+            bail!("QE Cert Type must be 4 or 5".to_string());
         }
-        let certchain_pems = parse_pem(&qe_cert_data.cert_data)
-            .map_err(|e| anyhow!("cannot parse QE cert chain: {}", e))?;
+        
+        let certchain = if qe_cert_data.cert_data_type == 5 {
+            // Type 5: PEM format
+            let certchain_pems = parse_pem(&qe_cert_data.cert_data)
+                .map_err(|e| anyhow!("cannot parse QE cert chain: {}", e))?;
+            parse_certchain(&certchain_pems)
+                .map_err(|e| anyhow!("cannot parse QE cert chain: {}", e))?
+        } else {
+            // Type 4: DER format
+            parse_der_certchain(&qe_cert_data.cert_data)
+                .map_err(|e| anyhow!("cannot parse QE cert chain: {}", e))?
+        };
 
-        let certchain = parse_certchain(&certchain_pems)
-            .map_err(|e| anyhow!("cannot parse QE cert chain: {}", e))?;
         if certchain.len() != 3 {
             bail!("QE Cert chain must have 3 certs".to_string());
         }
 
         // get the pck certificate
-        let pck_cert = &certchain[0];
-        let pck_cert_issuer = &certchain[1];
+        let pck_cert = certchain[0].as_x509();
+        let pck_cert_issuer = certchain[1].as_x509();
 
         // get the SGX extension
         let sgx_extensions = extract_sgx_extensions(pck_cert)
