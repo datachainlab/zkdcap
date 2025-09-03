@@ -30,7 +30,7 @@ jobs:
           curl -L https://risczero.com/install | bash
           echo "$HOME/.risc0/bin" >> $GITHUB_PATH
       - name: Install RISC Zero toolchain
-        run: rzup install rust && rzup install cargo-risczero 3.0.1
+        run: rzup install rust && rzup install cargo-risczero 3.0.3
       - run: . "/home/runner/.bashrc" && ZKDCAP_RISC0_BUILD=1 cargo build -r --manifest-path=./zkvm/risc0/Cargo.toml
       - run: git diff --exit-code
 
