@@ -326,7 +326,7 @@ impl Certificates {
     }
 
     /// Get the certificates as a vector of X509Certificate.
-    pub fn get_certs(&self) -> Result<Vec<X509Certificate>> {
+    pub fn get_certs(&self) -> Result<Vec<X509Certificate<'_>>> {
         parse_x509_der_multi(&self.certs_der)
     }
 }

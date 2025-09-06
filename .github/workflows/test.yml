@@ -30,7 +30,7 @@ jobs:
           curl -L https://risczero.com/install | bash
           echo "$HOME/.risc0/bin" >> $GITHUB_PATH
       - name: Install RISC Zero toolchain
-        run: rzup install rust && rzup install cargo-risczero 1.2.4
+        run: rzup install rust && rzup install cargo-risczero 3.0.3
       - run: . "/home/runner/.bashrc" && ZKDCAP_RISC0_BUILD=1 cargo build -r --manifest-path=./zkvm/risc0/Cargo.toml
       - run: git diff --exit-code
 
@@ -38,4 +38,4 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: docker run -v .:/root/zkdcap -w /root/zkdcap -t i386/rust:1.84 cargo test
+      - run: docker run -v .:/root/zkdcap -w /root/zkdcap -t i386/rust:1.89 cargo test

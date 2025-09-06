@@ -61,7 +61,7 @@ impl BitAnd for KeyUsageFlags {
 }
 
 /// Parse a PEM-encoded certificate chain into a vector of `X509Certificate`.
-pub fn parse_certchain(pem_certs: &[Pem]) -> crate::Result<Vec<X509Certificate>> {
+pub fn parse_certchain(pem_certs: &[Pem]) -> crate::Result<Vec<X509Certificate<'_>>> {
     Ok(pem_certs
         .iter()
         .map(|pem| pem.parse_x509())
@@ -204,6 +204,7 @@ pub fn get_sgx_tdx_tcb_status_v3(
             if match_tdxtcbcomp(&tee_tcb_svn.unwrap(), tdxtcbcomponents) {
                 // Return advisory IDs associated with matched TDX TCB level
                 return Ok((
+                    #[allow(clippy::unnecessary_unwrap)]
                     sgx_tcb_status.unwrap(),
                     Some(TcbInfoV3TcbStatus::from_str(tcb_level.tcb_status.as_str())?),
                     tcb_level.advisory_ids.clone().unwrap_or_default(),

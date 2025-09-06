@@ -52,7 +52,7 @@ pub fn p256_prvkey_to_pubkey_bytes(pkey: &PKeyRef<Private>) -> Result<[u8; 64], 
     Ok(pubkey)
 }
 
-pub fn parse_cert_der(cert_der: &[u8]) -> Result<X509Certificate, anyhow::Error> {
+pub fn parse_cert_der(cert_der: &[u8]) -> Result<X509Certificate<'_>, anyhow::Error> {
     let (_, c) = X509Certificate::from_der(cert_der)?;
     Ok(c)
 }
