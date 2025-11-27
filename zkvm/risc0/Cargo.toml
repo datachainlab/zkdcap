@@ -6,9 +6,6 @@ edition = "2021"
 [package.metadata.risc0]
 methods = ["guest"]
 
-[dependencies]
-risc0-zkvm = { version = "=3.0.3", default-features = false, optional = true }
-
 [build-dependencies]
 risc0-build  = { version = "=3.0.3", features = ["docker", "unstable"] }
 risc0-binfmt = { version = "3.0.2", default-features = false }
@@ -19,4 +16,4 @@ hex                 = { version = "0.4", default-features = false, features = ["
 dcap-quote-verifier = { path = "../../crates/quote-verifier" }
 
 [features]
-cuda = ["risc0-zkvm?/cuda"]
+cuda = ["risc0-zkvm/cuda"]
