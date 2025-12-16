@@ -25,7 +25,7 @@ sha2            = { version = "0.10.8" }
 sha3            = { version = "0.10.8" }
 urlencoding     = { version = "2" }
 x509-parser     = { version = "0.15.1" }
-openssl         = { git = "https://github.com/datachainlab/rust-openssl", rev = "6fdf2f32721719d173bf909c97e982fe4e2e2819" }
+openssl         = { git = "https://github.com/datachainlab/rust-openssl", rev = "1e4f9af40f9e2d74c9775482f7f5e6449cc7b8e1" }
 
 dcap-types          = { path = "crates/types" }
 dcap-collaterals    = { path = "crates/collaterals" }
