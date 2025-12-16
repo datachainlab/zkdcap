@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow              = { version = "1" }
-log                 = { version = "0.4.8" }
-hex                 = { version = "0.4" }
-urlencoding         = { version = "2" }
-pem                 = { version = "3", default-features = false }
-reqwest             = { version = "0.12.9", default-features = false, features = ["rustls-tls", "blocking", "hickory-dns"] }
-dcap-types          = { path = "../types" }
-dcap-quote-verifier = { path = "../quote-verifier" }
+anyhow              = { workspace = true }
+log                 = { workspace = true }
+hex                 = { workspace = true }
+urlencoding         = { workspace = true }
+pem                 = { workspace = true }
+reqwest             = { workspace = true }
+dcap-types          = { workspace = true }
+dcap-quote-verifier = { workspace = true }
 
 [features]
 default = []

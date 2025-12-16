@@ -210,13 +210,17 @@ mod tests {
             }
         }
         {
-            let pck_ca_crl = gen_crl_der(
-                &pck_certchain.pck_cert_ca,
-                &pck_certchain.pck_cert_ca_key,
-                vec![tcb_certchain.cert.clone()],
-                None,
+            // Generate another TCB signing cert from root CA to use as revoked cert
+            let another_tcb_key = gen_key();
+            let another_tcb_cert = gen_tcb_signing_ca(
+                &root_ca.cert,
+                &root_ca.key,
+                &another_tcb_key,
+                Validity::new_with_duration(1730000001, 1000),
             )
             .unwrap();
+            let root_ca_crl =
+                gen_crl_der(&root_ca.cert, &root_ca.key, vec![another_tcb_cert], None).unwrap();
             let crls = IntelSgxCrls::new(
                 CertificateRevocationList::from_der(root_ca_crl.as_ref())
                     .unwrap()

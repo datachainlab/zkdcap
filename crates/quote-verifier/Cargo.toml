@@ -8,20 +8,20 @@ edition = "2021"
 crate-type = ["lib"]
 
 [dependencies]
-hex             = { version = "0.4" }
-x509-parser     = { version = "0.15.1" }
-serde           = { version = "1.0", features = ["derive"] }
-serde_json      = { version = "1.0" }
-anyhow          = { version = "1" }
-p256            = { version = "0.13.2" }
-sha2            = { version = "0.10.8" }
-sha3            = { version = "0.10.8" }
-alloy-sol-types = { version = "0.8.12" }
-dcap-types      = { path = "../types" }
+hex             = { workspace = true }
+x509-parser     = { workspace = true }
+serde           = { workspace = true }
+serde_json      = { workspace = true }
+anyhow          = { workspace = true }
+p256            = { workspace = true }
+sha2            = { workspace = true }
+sha3            = { workspace = true }
+alloy-sol-types = { workspace = true }
+dcap-types      = { workspace = true }
 
 [features]
 default = []
 
 [dev-dependencies]
-serde_json       = { version = "1.0", features = ["preserve_order"] }
-dcap-collaterals = { path = "../collaterals" }
+serde_json       = { workspace = true, features = ["preserve_order"] }
+dcap-collaterals = { workspace = true }

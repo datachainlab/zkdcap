@@ -7,3 +7,26 @@ members = [
   "crates/collaterals",
 ]
 exclude = ["zkvm/risc0", "zkvm/risc0/guest"]
+
+[workspace.dependencies]
+alloy-sol-types = { version = "0.8.12" }
+anyhow          = { version = "1" }
+chrono          = { version = "0.4" }
+der             = { version = "0.7", features = ["alloc", "derive"] }
+hex             = { version = "0.4" }
+log             = { version = "0.4.8" }
+p256            = { version = "0.13.2" }
+pem             = { version = "3", default-features = false }
+proptest        = { version = "1.6" }
+reqwest         = { version = "0.12.9", default-features = false, features = ["rustls-tls", "blocking", "hickory-dns"] }
+serde           = { version = "1.0", features = ["derive"] }
+serde_json      = { version = "1.0" }
+sha2            = { version = "0.10.8" }
+sha3            = { version = "0.10.8" }
+urlencoding     = { version = "2" }
+x509-parser     = { version = "0.15.1" }
+openssl         = { git = "https://github.com/datachainlab/rust-openssl", rev = "1e4f9af40f9e2d74c9775482f7f5e6449cc7b8e1" }
+
+dcap-types          = { path = "crates/types" }
+dcap-collaterals    = { path = "crates/collaterals" }
+dcap-quote-verifier = { path = "crates/quote-verifier" }
