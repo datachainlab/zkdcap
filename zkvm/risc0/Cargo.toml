@@ -7,11 +7,11 @@ edition = "2021"
 methods = ["guest"]
 
 [build-dependencies]
-risc0-build  = { version = "=3.0.3", features = ["docker", "unstable"] }
+risc0-build  = { version = "=3.0.5", features = ["docker", "unstable"] }
 risc0-binfmt = { version = "3.0.2", default-features = false }
 
 [dev-dependencies]
-risc0-zkvm          = { version = "=3.0.3", default-features = false, features = ["prove"] }
+risc0-zkvm          = { version = "=3.0.5", default-features = false, features = ["prove"] }
 hex                 = { version = "0.4", default-features = false, features = ["alloc"] }
 dcap-quote-verifier = { path = "../../crates/quote-verifier" }
 

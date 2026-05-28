@@ -14,6 +14,11 @@ fn main() {
         }
     }
 
+    // set RISC0_DOCKER_CONTAINER_TAG to r0.1.91.1 if not set
+    if env::var("RISC0_DOCKER_CONTAINER_TAG").is_err() {
+        env::set_var("RISC0_DOCKER_CONTAINER_TAG", "r0.1.91.1");
+    }
+
     // Builds can be made deterministic, and thereby reproducible, by using Docker to build the
     // guest.
     let use_docker = DockerOptionsBuilder::default()
